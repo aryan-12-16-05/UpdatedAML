@@ -871,20 +871,108 @@ elif page == "Macro Analytics":
     st.title("📈 Macro Analytics Dashboard")
     st.markdown("High-level overview of flagged transactions, total illicit money stopped, and bank risk exposure.")
     
-    # Simple placeholder UI for now
+    # Get dataset
+    df_all = fraud_data.get_transactions_df()
+    
+    # Calculate real stats
+    high_risk_df = df_all[df_all["GAT Signal"] == "HIGH RISK"]
+    
+    # Approximate USD amount since Amounts might be mixed in the raw DB
+    # We can use the format_currency logic but for macro level, we can just sum a rough USD equivalent
+    total_illicit = 0.0
+    for _, row in high_risk_df.iterrows():
+        amt = float(row.get("Amount Paid", 0.0))
+        curr = str(row.get("Payment Currency", "US Dollar"))
+        rate = fraud_data.USD_CONVERSION_RATES.get(curr, 1.0)
+        total_illicit += (amt * rate)
+        
+    total_illicit_str = fraud_data.format_currency(total_illicit, "US Dollar")
+    
+    total_flags = len(high_risk_df)
+    import decisions_db
+    decisions = decisions_db.get_analyst_decisions()
+    decisions_count = len(decisions)
+    
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("Total Illicit Funds Stopped", "¥14.2M", "+12% this week")
-    with c2:
-        st.metric("Top Flagged Bank", "Crypto Bank #27", "84 flags")
-    with c3:
-        st.metric("High Risk Decisions Made", "14", "+4 today")
-        
-    st.html("""
-    <div style="margin-top:40px;padding:20px;background:white;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 4px 6px -1px rgba(0,0,0,0.05);">
-        <h4 style="margin-top:0;">Fan-Out Volume Over Time</h4>
-        <div style="height:200px;display:flex;align-items:center;justify-content:center;color:#94a3b8;background:#f8fafc;border-radius:8px;">
-            [Interactive Chart Placeholder]
+        st.html(f"""
+        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 2px 4px rgba(0,0,0,0.03);">
+            <div style="font-size:13px;color:#64748b;font-weight:600;text-transform:uppercase;">Total Illicit Funds Exposed</div>
+            <div style="font-size:28px;font-weight:800;color:#dc2626;margin-top:5px;">{total_illicit_str}</div>
+            <div style="font-size:12px;color:#10b981;margin-top:5px;">↑ Tracking {total_flags:,} suspicious transfers</div>
         </div>
-    </div>
-    """)
+        """)
+    with c2:
+        top_bank = high_risk_df["Bank Name"].value_counts().index[0] if not high_risk_df.empty else "N/A"
+        top_bank_cnt = high_risk_df["Bank Name"].value_counts().iloc[0] if not high_risk_df.empty else 0
+        st.html(f"""
+        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 2px 4px rgba(0,0,0,0.03);">
+            <div style="font-size:13px;color:#64748b;font-weight:600;text-transform:uppercase;">Top Flagged Bank</div>
+            <div style="font-size:28px;font-weight:800;color:#0f172a;margin-top:5px;">{top_bank}</div>
+            <div style="font-size:12px;color:#f59e0b;margin-top:5px;">⚠️ {top_bank_cnt:,} High-Risk Flags</div>
+        </div>
+        """)
+    with c3:
+        st.html(f"""
+        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 2px 4px rgba(0,0,0,0.03);">
+            <div style="font-size:13px;color:#64748b;font-weight:600;text-transform:uppercase;">Analyst Decisions</div>
+            <div style="font-size:28px;font-weight:800;color:#2563eb;margin-top:5px;">{decisions_count}</div>
+            <div style="font-size:12px;color:#64748b;margin-top:5px;">Total resolutions submitted</div>
+        </div>
+        """)
+        
+    st.write("")
+    
+    # CHARTS
+    colA, colB = st.columns([2, 1])
+    
+    with colA:
+        st.markdown("#### Suspected Fan-Out Volume Over Time")
+        if "Timestamp" in high_risk_df.columns and not high_risk_df.empty:
+            df_time = high_risk_df.copy()
+            df_time["Timestamp"] = pd.to_datetime(df_time["Timestamp"], errors='coerce')
+            df_time = df_time.dropna(subset=["Timestamp"])
+            if not df_time.empty:
+                df_time["Date"] = df_time["Timestamp"].dt.date
+                daily_vols = df_time.groupby("Date").size().reset_index(name="Count")
+                
+                fig1 = go.Figure()
+                fig1.add_trace(go.Scatter(
+                    x=daily_vols["Date"], y=daily_vols["Count"],
+                    mode='lines+markers',
+                    line=dict(color='#ef4444', width=3),
+                    marker=dict(size=6, color='#dc2626'),
+                    fill='tozeroy',
+                    fillcolor='rgba(239, 68, 68, 0.1)'
+                ))
+                fig1.update_layout(
+                    margin=dict(l=0, r=0, t=20, b=0),
+                    paper_bgcolor='rgba(0,0,0,0)',
+                    plot_bgcolor='rgba(0,0,0,0)',
+                    xaxis=dict(showgrid=False),
+                    yaxis=dict(gridcolor='#f1f5f9')
+                )
+                st.plotly_chart(fig1, use_container_width=True)
+            else:
+                st.info("No valid timeseries data available.")
+        else:
+            st.info("No timestamp data available in dataset.")
+
+    with colB:
+        st.markdown("#### Suspicious Payment Formats")
+        if not high_risk_df.empty:
+            fmt_counts = high_risk_df["Payment Format"].value_counts().reset_index()
+            fmt_counts.columns = ["Format", "Count"]
+            
+            fig2 = go.Figure(data=[go.Pie(
+                labels=fmt_counts["Format"], 
+                values=fmt_counts["Count"],
+                hole=0.6,
+                marker=dict(colors=['#3b82f6', '#f59e0b', '#10b981', '#6366f1', '#ec4899'])
+            )])
+            fig2.update_layout(
+                margin=dict(l=0, r=0, t=20, b=0),
+                showlegend=True,
+                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
+            )
+            st.plotly_chart(fig2, use_container_width=True)
