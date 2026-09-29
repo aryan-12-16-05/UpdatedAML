@@ -377,9 +377,11 @@ def get_dm():
         _dm = DatasetManager.get_instance()
     return _dm
 
+@st.cache_data(ttl=3600)
 def get_transactions_df():
     return get_dm().get_df()
 
+@st.cache_data(ttl=3600)
 def get_all_flagged_senders():
     return get_dm().get_group_summaries()
 
