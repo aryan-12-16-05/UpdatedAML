@@ -482,7 +482,7 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
             "account": from_acc,
             "to_account": from_acc,
             "is_source": True,
-            "amount": format_currency(total_amt, currency),
+            "amount": f"Total Out: {format_currency(total_amt, currency)}",
             "time": str(first_row.get("Timestamp", group_info.get("timestamp", "—"))),
             "raw_amount_paid": total_amt,
             "raw_amount_received": total_amt,
