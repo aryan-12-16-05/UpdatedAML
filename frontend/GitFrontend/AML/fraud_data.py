@@ -114,24 +114,22 @@ class DatasetManager:
         encoded_password = urllib.parse.quote_plus(DB_PASSWORD)
         engine = create_engine(
             f"mysql+pymysql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
-            connect_args={"ssl": {"ssl_cert": None}}
+            connect_args={"ssl": {"ssl_cert": None}, "connect_timeout": 15}
         )
 
         # 1. Load Transactions Dataset
         print(f"Loading transactions dataset from MySQL...")
         
-        # Optimize query: Only fetch transactions for Fan-Out groups that contain HIGH or MEDIUM risk signals.
-        # This prevents loading the entire massive dataset into pandas, making the app blazing fast.
-        optimized_query = """
-        SELECT * FROM transactions 
-        WHERE fan_out_group IN (
-            SELECT DISTINCT fan_out_group 
-            FROM transactions 
-            WHERE UPPER(gat_risk_level) IN ('HIGH', 'MEDIUM')
-            AND UPPER(behavior_signal) = 'FAN-OUT'
-        )
-        """
-        raw_df = pd.read_sql(optimized_query, engine)
+        # Optimize query: Fetch everything and filter in pandas (TiDB Serverless can hang on complex subqueries)
+        raw_df = pd.read_sql("SELECT * FROM transactions", engine)
+        
+        # Filter groups in pandas (100x faster than TiDB IN clause for this dataset)
+        high_med = raw_df[
+            (raw_df["gat_risk_level"].str.upper().isin(["HIGH", "MEDIUM"])) & 
+            (raw_df["behavior_signal"].str.upper() == "FAN-OUT")
+        ]
+        valid_groups = high_med["fan_out_group"].unique()
+        raw_df = raw_df[raw_df["fan_out_group"].isin(valid_groups)]
 
         # Map MySQL columns (lowercase) to the expected dataframe columns
         col_mapping = {
@@ -350,19 +348,25 @@ class DatasetManager:
 
 
 # Initialize singleton accessor
-_dm = DatasetManager.get_instance()
+_dm = None
+
+def get_dm():
+    global _dm
+    if _dm is None:
+        _dm = DatasetManager.get_instance()
+    return _dm
 
 def get_transactions_df():
-    return _dm.get_df()
+    return get_dm().get_df()
 
 def get_all_flagged_senders():
-    return _dm.get_group_summaries()
+    return get_dm().get_group_summaries()
 
 def get_flagged_transactions():
-    return _dm.get_group_summaries()
+    return get_dm().get_group_summaries()
 
 def get_transaction_by_id(tx_id_or_group_id):
-    summaries = _dm.get_group_summaries()
+    summaries = get_dm().get_group_summaries()
     for s in summaries:
         if (str(s.get("tx_id")) == str(tx_id_or_group_id) or 
             str(s.get("group_id")) == str(tx_id_or_group_id) or 
@@ -374,7 +378,7 @@ def get_transaction_by_id(tx_id_or_group_id):
         for s in summaries:
             if s.get("group_id") == gid:
                 return s
-        gdf = _dm.get_group_df(gid)
+        gdf = get_dm().get_group_df(gid)
         if not gdf.empty:
             first_row = gdf.iloc[0]
             gat_prob = float(first_row.get("GAT Probability", 0.99))
@@ -384,7 +388,7 @@ def get_transaction_by_id(tx_id_or_group_id):
             currency = str(first_row.get("Payment Currency", "US Dollar"))
             total_amt = gdf["Amount Paid"].sum() if "Amount Paid" in gdf.columns else 0.0
             from_acc = str(first_row.get("From Account", "—"))
-            sender_prof = _dm.get_profile_by_account(from_acc)
+            sender_prof = get_dm().get_profile_by_account(from_acc)
             
             return {
                 "group_id": gid,
@@ -430,14 +434,14 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
     """Returns all transaction rows (source sender + receiver hops) for the selected Fan-out Group."""
     group_info = get_transaction_by_id(tx_id_or_group_id)
     gid = group_info.get("group_id", 1)
-    gdf = _dm.get_group_df(gid)
+    gdf = get_dm().get_group_df(gid)
     if gdf.empty:
         return []
 
     rows = []
     first_row = gdf.iloc[0]
     from_acc = str(first_row.get("From Account", group_info.get("account", "—")))
-    sender_prof = _dm.get_profile_by_account(from_acc)
+    sender_prof = get_dm().get_profile_by_account(from_acc)
     currency = str(first_row.get("Payment Currency", "US Dollar"))
     total_amt = float(group_info.get("amount", gdf["Amount Paid"].sum() if "Amount Paid" in gdf.columns else 0.0))
 
@@ -479,7 +483,7 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
         to_acc = str(r.get("To Account", ""))
         
         # Enrich receiver info from customer_profiles
-        recv_prof = _dm.get_profile_by_account(to_acc)
+        recv_prof = get_dm().get_profile_by_account(to_acc)
         to_entity = recv_prof.get("Entity Name", r.get("Entity Name", f"Account {to_acc}"))
         to_bank = recv_prof.get("Bank Name", r.get("Bank Name", "Global Bank"))
         to_bank_id = recv_prof.get("Bank ID", r.get("Bank ID", "BNK-001"))
@@ -519,7 +523,7 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
 def get_customer_profile(account_id, *args, **kwargs):
     """Retrieve full customer profile from customer_profiles.csv."""
     clean_acc = str(account_id).replace("Account ", "").strip()
-    prof = _dm.get_profile_by_account(clean_acc)
+    prof = get_dm().get_profile_by_account(clean_acc)
 
     entity_name = str(prof.get("Entity Name", f"Account {clean_acc}"))
     bank_name = str(prof.get("Bank Name", "Global Trust Bank"))
@@ -586,7 +590,7 @@ def create_network_graph(tx_id_or_group_id, include_2hop=False, max_nodes=20):
     """Generates a NetworkX directed graph for the selected Fan-out Group."""
     group_info = get_transaction_by_id(tx_id_or_group_id)
     gid = group_info.get("group_id", 1)
-    gdf = _dm.get_group_df(gid)
+    gdf = get_dm().get_group_df(gid)
 
     G = nx.DiGraph()
     if gdf.empty:
@@ -594,7 +598,7 @@ def create_network_graph(tx_id_or_group_id, include_2hop=False, max_nodes=20):
 
     first_row = gdf.iloc[0]
     source_acc = str(first_row.get("From Account", "—"))
-    sender_prof = _dm.get_profile_by_account(source_acc)
+    sender_prof = get_dm().get_profile_by_account(source_acc)
     
     from_entity = str(sender_prof.get("Entity Name", first_row.get("Entity Name", f"Account {source_acc}")))
     from_bank = str(sender_prof.get("Bank Name", first_row.get("Bank Name", "Global Bank")))
@@ -622,7 +626,7 @@ def create_network_graph(tx_id_or_group_id, include_2hop=False, max_nodes=20):
     render_receivers = gdf.head(max_nodes)
     for _, r in render_receivers.iterrows():
         target = str(r.get("To Account", ""))
-        recv_prof = _dm.get_profile_by_account(target)
+        recv_prof = get_dm().get_profile_by_account(target)
         
         to_entity = str(recv_prof.get("Entity Name", r.get("Entity Name", f"Account {target}")))
         to_bank = str(recv_prof.get("Bank Name", r.get("Bank Name", "Global Bank")))
@@ -658,7 +662,7 @@ def record_analyst_decision(tx_id_or_group_id, decision: str, notes: str, timest
 
     Returns True if the group was found and updated, False otherwise.
     """
-    summaries = _dm.get_group_summaries()
+    summaries = get_dm().get_group_summaries()
 
     # Resolve group_id
     target_gid = None

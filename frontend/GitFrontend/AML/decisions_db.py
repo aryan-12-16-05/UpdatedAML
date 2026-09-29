@@ -21,7 +21,8 @@ def record_analyst_decision(tx_id, decision, notes, timestamp):
             password=DB_PASSWORD,
             database=DB_NAME,
             ssl_verify_cert=True,
-            ssl_verify_identity=True
+            ssl_verify_identity=True,
+            connect_timeout=15
         )
         cursor = conn.cursor()
         
@@ -62,7 +63,8 @@ def get_analyst_decisions():
             password=DB_PASSWORD,
             database=DB_NAME,
             ssl_verify_cert=True,
-            ssl_verify_identity=True
+            ssl_verify_identity=True,
+            connect_timeout=15
         )
         cursor = conn.cursor(dictionary=True)
         cursor.execute("SELECT * FROM analyst_decisions")
