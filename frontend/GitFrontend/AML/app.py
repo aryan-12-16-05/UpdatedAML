@@ -247,7 +247,7 @@ with st.sidebar:
     default_page_idx = 1 if st.session_state.goto_graph else 0
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Alerts / Graph Network", "Macro Analytics"],
+        ["Dashboard", "Alerts / Graph Network", "Macro Analytics", "Metrics"],
         index=default_page_idx,
         label_visibility="collapsed"
     )
@@ -977,3 +977,102 @@ elif page == "Macro Analytics":
                 legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
             )
             st.plotly_chart(fig2, use_container_width=True)
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  MODEL METRICS PAGE
+# ══════════════════════════════════════════════════════════════════════════════
+elif page == "Metrics":
+    st.html(textwrap.dedent("""
+    <div class="center-card" style="margin-bottom:20px;">
+        <h2 style="margin:0;color:#0f172a;font-weight:800;">GAT Model Evaluation Metrics</h2>
+        <p style="color:#64748b;font-size:14px;margin-top:5px;">
+            Comprehensive performance metrics for the Graph Attention Network (GAT) AML Detection Model across Training, Validation, and Test datasets.
+        </p>
+    </div>
+    """))
+
+    tab_train, tab_val, tab_test = st.tabs(["Training Data (7M)", "Validation Data (1.5M)", "Test Data (1.5M)"])
+
+    def plot_confusion_matrix(tn, fp, fn, tp):
+        fig = go.Figure(data=go.Heatmap(
+            z=[[tn, fp], [fn, tp]],
+            x=['Predicted Legitimate', 'Predicted Laundering'],
+            y=['Actual Legitimate', 'Actual Laundering'],
+            colorscale='Blues',
+            text=[[f"TN<br>{tn:,}", f"FP<br>{fp:,}"], [f"FN<br>{fn:,}", f"TP<br>{tp:,}"]],
+            texttemplate="%{text}",
+            textfont={"size": 14},
+            hoverinfo="none",
+            showscale=False
+        ))
+        fig.update_layout(
+            margin=dict(l=0, r=0, t=30, b=0),
+            height=300,
+            xaxis=dict(side='bottom'),
+            yaxis=dict(autorange='reversed')
+        )
+        return fig
+
+    with tab_train:
+        st.markdown("### 📊 Training Set Performance")
+        m1, m2, m3, m4, m5, m6 = st.columns(6)
+        m1.metric("Precision", "0.9948")
+        m2.metric("Recall", "0.9975")
+        m3.metric("F1 Score", "0.9962")
+        m4.metric("Accuracy", "0.9966")
+        m5.metric("ROC-AUC", "0.9999")
+        m6.metric("PR-AUC", "0.9998")
+
+        st.markdown("---")
+        col_cm, col_stat = st.columns([1.5, 1])
+        with col_cm:
+            st.markdown("#### Confusion Matrix")
+            st.plotly_chart(plot_confusion_matrix(3888208, 15918, 7539, 3088335), use_container_width=True)
+        with col_stat:
+            st.markdown("#### Alert Statistics")
+            st.info("**Total Transactions:** 7,000,000")
+            st.warning("**Alerts Generated:** 3,104,253")
+            st.error("**Alert Rate:** 44.34%")
+
+    with tab_val:
+        st.markdown("### 📊 Validation Set Performance")
+        m1, m2, m3, m4, m5, m6 = st.columns(6)
+        m1.metric("Precision", "0.9982")
+        m2.metric("Recall", "0.9938")
+        m3.metric("F1 Score", "0.9960")
+        m4.metric("Accuracy", "0.9963")
+        m5.metric("ROC-AUC", "0.9999")
+        m6.metric("PR-AUC", "0.9999")
+
+        st.markdown("---")
+        col_cm, col_stat = st.columns([1.5, 1])
+        with col_cm:
+            st.markdown("#### Confusion Matrix")
+            st.plotly_chart(plot_confusion_matrix(817682, 1211, 4195, 676912), use_container_width=True)
+        with col_stat:
+            st.markdown("#### Alert Statistics")
+            st.info("**Total Transactions:** 1,500,000")
+            st.warning("**Alerts Generated:** 678,123")
+            st.error("**Alert Rate:** 45.20%")
+
+    with tab_test:
+        st.markdown("### 📊 Test Set Performance")
+        m1, m2, m3, m4, m5, m6 = st.columns(6)
+        m1.metric("Precision", "0.9988")
+        m2.metric("Recall", "0.9984")
+        m3.metric("F1 Score", "0.9986")
+        m4.metric("Accuracy", "0.9978")
+        m5.metric("ROC-AUC", "0.9998")
+        m6.metric("PR-AUC", "0.9999")
+
+        st.markdown("---")
+        col_cm, col_stat = st.columns([1.5, 1])
+        with col_cm:
+            st.markdown("#### Confusion Matrix")
+            st.plotly_chart(plot_confusion_matrix(275610, 1371, 1890, 1221129), use_container_width=True)
+        with col_stat:
+            st.markdown("#### Alert Statistics")
+            st.info("**Total Transactions:** 1,500,000")
+            st.warning("**Alerts Generated:** 1,222,500")
+            st.error("**Alert Rate:** 81.50%")
+
