@@ -77,9 +77,12 @@ def format_currency(amount, currency_name="US Dollar"):
         return f"{sym}{amount}"
 
 
+import threading
+
 class DatasetManager:
     """Singleton manager that loads and indexes GitData/ transactions and customer profiles."""
     _instance = None
+    _lock = threading.Lock()
     _df = None
     _profiles_map = None
     _group_summaries = None
@@ -88,8 +91,11 @@ class DatasetManager:
     @classmethod
     def get_instance(cls):
         if cls._instance is None:
-            cls._instance = cls()
-            cls._instance._load_data()
+            with cls._lock:
+                if cls._instance is None:
+                    inst = cls()
+                    inst._load_data()
+                    cls._instance = inst
         return cls._instance
 
     def _find_file(self, pattern_list):
