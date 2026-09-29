@@ -142,8 +142,8 @@ class DatasetManager:
         # 1. Load Transactions Dataset
         print(f"Loading transactions dataset from MySQL...")
         
-        # We add LIMIT 30000 because Streamlit Cloud free tier has a 1GB RAM limit.
-        # The Fan-Out groups actually contain 1.12 million rows, which OOMs the container!
+        # We limit to 2000 distinct fan-out groups (yielding ~20k-40k rows).
+        # This keeps the groups complete so you see the real 1:N fan-out instead of truncated 1:1s.
         optimized_query = """
         SELECT t1.* 
         FROM transactions t1
@@ -153,8 +153,8 @@ class DatasetManager:
             WHERE UPPER(gat_risk_level) IN ('HIGH', 'MEDIUM')
               AND UPPER(behavior_signal) = 'FAN-OUT'
               AND fan_out_group IS NOT NULL
+            LIMIT 2000
         ) t2 ON t1.fan_out_group = t2.fan_out_group
-        LIMIT 30000
         """
         raw_df = pd.read_sql(optimized_query, engine)
 
