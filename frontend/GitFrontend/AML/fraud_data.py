@@ -41,30 +41,11 @@ GITDATA_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "GitData")
 )
 
-USD_CONVERSION_RATES = {
-    "US Dollar": 1.0,
-    "Euro": 1.10,
-    "Rupee": 0.012,
-    "UK Pound": 1.26,
-    "Yen": 0.0067,
-    "Yuan": 0.14,
-    "Swiss Franc": 1.11,
-    "Canadian Dollar": 0.74,
-    "Australian Dollar": 0.65,
-    "Ruble": 0.011,
-    "Shekel": 0.27,
-    "Bitcoin": 65000.0,
-    "Mexican Peso": 0.059,
-    "Saudi Riyal": 0.27,
-    "Brazil Real": 0.20,
-}
-
 def format_currency(amount, currency_name="US Dollar"):
-    """Format numeric amount normalized to USD."""
-    rate = USD_CONVERSION_RATES.get(currency_name, 1.0)
+    """Format numeric amount (already normalized to USD in dataset) with $ symbol."""
     sym = "$"
     try:
-        amt = float(amount) * rate
+        amt = float(amount)
         if abs(amt) >= 1_000_000_000:
             return f"{sym}{amt / 1_000_000_000:.2f}B"
         elif abs(amt) >= 1_000_000:
