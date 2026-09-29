@@ -35,6 +35,16 @@ def record_analyst_decision(tx_id, decision, notes, timestamp):
         )
         cursor = conn.cursor()
         
+        # Ensure the table exists
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS analyst_decisions (
+            tx_id VARCHAR(255) PRIMARY KEY,
+            decision VARCHAR(255),
+            notes TEXT,
+            timestamp VARCHAR(255)
+        )
+        """)
+        
         sql = """
         INSERT INTO analyst_decisions (tx_id, decision, notes, timestamp)
         VALUES (%s, %s, %s, %s)
@@ -85,6 +95,17 @@ def get_analyst_decisions():
             connect_timeout=15
         )
         cursor = conn.cursor(dictionary=True)
+        
+        # Ensure the table exists before querying
+        cursor.execute("""
+        CREATE TABLE IF NOT EXISTS analyst_decisions (
+            tx_id VARCHAR(255) PRIMARY KEY,
+            decision VARCHAR(255),
+            notes TEXT,
+            timestamp VARCHAR(255)
+        )
+        """)
+        
         cursor.execute("SELECT * FROM analyst_decisions")
         for row in cursor.fetchall():
             decisions[row['tx_id']] = {

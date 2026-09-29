@@ -538,6 +538,7 @@ if page == "Dashboard":
                     
                     # Persist decision to the database backend
                     decisions_db.record_analyst_decision(tx_key, decision, notes, timestamp)
+                    st.rerun()
                     
                     # If approved, navigate to the next remaining high-risk group
                     if "Approve" in decision:
