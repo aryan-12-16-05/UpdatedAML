@@ -142,16 +142,21 @@ class DatasetManager:
         # 1. Load Transactions Dataset
         print(f"Loading transactions dataset from MySQL...")
         
-        # Optimize query: Fetch everything and filter in pandas (TiDB Serverless can hang on complex subqueries)
-        raw_df = pd.read_sql("SELECT * FROM transactions", engine)
-        
-        # Filter groups in pandas (100x faster than TiDB IN clause for this dataset)
-        high_med = raw_df[
-            (raw_df["gat_risk_level"].str.upper().isin(["HIGH", "MEDIUM"])) & 
-            (raw_df["behavior_signal"].str.upper() == "FAN-OUT")
-        ]
-        valid_groups = high_med["fan_out_group"].unique()
-        raw_df = raw_df[raw_df["fan_out_group"].isin(valid_groups)]
+        # Now that TiDB has indexes, we use an INNER JOIN to only fetch transactions
+        # for fan_out_groups that contain HIGH/MEDIUM risk FAN-OUT behaviors.
+        # This reduces data transfer from 1.5M rows to ~40k rows, preventing Streamlit OOMs.
+        optimized_query = """
+        SELECT t1.* 
+        FROM transactions t1
+        INNER JOIN (
+            SELECT DISTINCT fan_out_group 
+            FROM transactions 
+            WHERE UPPER(gat_risk_level) IN ('HIGH', 'MEDIUM')
+              AND UPPER(behavior_signal) = 'FAN-OUT'
+              AND fan_out_group IS NOT NULL
+        ) t2 ON t1.fan_out_group = t2.fan_out_group
+        """
+        raw_df = pd.read_sql(optimized_query, engine)
 
         # Map MySQL columns (lowercase) to the expected dataframe columns
         col_mapping = {
