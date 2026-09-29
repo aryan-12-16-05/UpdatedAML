@@ -142,9 +142,8 @@ class DatasetManager:
         # 1. Load Transactions Dataset
         print(f"Loading transactions dataset from MySQL...")
         
-        # Now that TiDB has indexes, we use an INNER JOIN to only fetch transactions
-        # for fan_out_groups that contain HIGH/MEDIUM risk FAN-OUT behaviors.
-        # This reduces data transfer from 1.5M rows to ~40k rows, preventing Streamlit OOMs.
+        # We add LIMIT 30000 because Streamlit Cloud free tier has a 1GB RAM limit.
+        # The Fan-Out groups actually contain 1.12 million rows, which OOMs the container!
         optimized_query = """
         SELECT t1.* 
         FROM transactions t1
@@ -155,6 +154,7 @@ class DatasetManager:
               AND UPPER(behavior_signal) = 'FAN-OUT'
               AND fan_out_group IS NOT NULL
         ) t2 ON t1.fan_out_group = t2.fan_out_group
+        LIMIT 30000
         """
         raw_df = pd.read_sql(optimized_query, engine)
 
