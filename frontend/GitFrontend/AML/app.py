@@ -1,14 +1,19 @@
 import streamlit as st
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-from datetime import datetime
-import textwrap
-import importlib
-import fraud_data
-import graph_vis
+import traceback
 
-# (importlib.reload removed for performance)
+try:
+    import pandas as pd
+    import numpy as np
+    import plotly.graph_objects as go
+    from datetime import datetime
+    import textwrap
+    import importlib
+    import fraud_data
+    import graph_vis
+except Exception as e:
+    st.error(f"Error during imports: {str(e)}")
+    st.error(traceback.format_exc())
+    st.stop()
 
 # ─── Page Configuration ────────────────────────────────────────────────────
 st.set_page_config(
