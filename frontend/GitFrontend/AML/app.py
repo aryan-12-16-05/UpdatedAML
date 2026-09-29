@@ -281,11 +281,12 @@ st.write("")
 if page == "Dashboard":
 
     # Top Banner with real dataset counts
-    total_txs_count = f"{len(fraud_data.get_transactions_df()):,}"
-    flagged_senders = fraud_data.get_all_flagged_senders()
-    high_count = sum(1 for s in flagged_senders if s["risk"] == "High")
-    med_count = sum(1 for s in flagged_senders if s["risk"] == "Medium")
-    low_count = sum(1 for s in flagged_senders if s["risk"] == "Low")
+    with st.spinner("Connecting to TiDB and loading initial data (this might take a moment)..."):
+        total_txs_count = f"{len(fraud_data.get_transactions_df()):,}"
+        flagged_senders = fraud_data.get_all_flagged_senders()
+        high_count = sum(1 for s in flagged_senders if s["risk"] == "High")
+        med_count = sum(1 for s in flagged_senders if s["risk"] == "Medium")
+        low_count = sum(1 for s in flagged_senders if s["risk"] == "Low")
 
     st.html(textwrap.dedent(f"""
     <div class="top-banner">
