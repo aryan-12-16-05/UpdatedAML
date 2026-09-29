@@ -589,7 +589,10 @@ if page == "Dashboard":
         profile_label = "Source Sender Profile" if is_src else "Receiver Profile"
 
         try:
-            profile = fraud_data.get_customer_profile(acc_num)
+            profile = fraud_data.get_customer_profile(
+                acc_num, 
+                currency=sub_tx.get("currency", "US Dollar")
+            )
         except Exception:
             profile = {}
 

@@ -41,11 +41,30 @@ GITDATA_DIR = os.path.abspath(
     os.path.join(os.path.dirname(__file__), "..", "..", "GitData")
 )
 
+USD_CONVERSION_RATES = {
+    "US Dollar": 1.0,
+    "Euro": 1.10,
+    "Rupee": 0.012,
+    "UK Pound": 1.26,
+    "Yen": 0.0067,
+    "Yuan": 0.14,
+    "Swiss Franc": 1.11,
+    "Canadian Dollar": 0.74,
+    "Australian Dollar": 0.65,
+    "Ruble": 0.011,
+    "Shekel": 0.27,
+    "Bitcoin": 65000.0,
+    "Mexican Peso": 0.059,
+    "Saudi Riyal": 0.27,
+    "Brazil Real": 0.20,
+}
+
 def format_currency(amount, currency_name="US Dollar"):
     """Format numeric amount (already normalized to USD in dataset) with $ symbol."""
+    rate = USD_CONVERSION_RATES.get(currency_name, 1.0)
     sym = "$"
     try:
-        amt = float(amount)
+        amt = float(amount) * rate
         if abs(amt) >= 1_000_000_000:
             return f"{sym}{amt / 1_000_000_000:.2f}B"
         elif abs(amt) >= 1_000_000:
@@ -531,7 +550,7 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
     return rows
 
 
-def get_customer_profile(account_id, *args, **kwargs):
+def get_customer_profile(account_id, currency="US Dollar", *args, **kwargs):
     """Retrieve full customer profile from customer_profiles.csv."""
     clean_acc = str(account_id).replace("Account ", "").strip()
     prof = get_dm().get_profile_by_account(clean_acc)
@@ -565,17 +584,17 @@ def get_customer_profile(account_id, *args, **kwargs):
         "bank_name": bank_name,
         "bank_id": bank_id,
         "total_transactions": str(tot_tx),
-        "total_incoming": format_currency(tot_in, "US Dollar"),
-        "total_outgoing": format_currency(tot_out, "US Dollar"),
-        "avg_incoming_amount": format_currency(avg_in, "US Dollar"),
-        "avg_outgoing_amount": format_currency(avg_out, "US Dollar"),
-        "max_incoming_amount": format_currency(max_in, "US Dollar"),
-        "max_outgoing_amount": format_currency(max_out, "US Dollar"),
-        "avg_tx_amount": format_currency(avg_out if out_tx > 0 else avg_in, "US Dollar"),
+        "total_incoming": format_currency(tot_in, currency),
+        "total_outgoing": format_currency(tot_out, currency),
+        "avg_incoming_amount": format_currency(avg_in, currency),
+        "avg_outgoing_amount": format_currency(avg_out, currency),
+        "max_incoming_amount": format_currency(max_in, currency),
+        "max_outgoing_amount": format_currency(max_out, currency),
+        "avg_tx_amount": format_currency(avg_out if out_tx > 0 else avg_in, currency),
         "unique_senders": uniq_snds,
         "unique_receivers": uniq_recs,
         "total_degree": tot_deg,
-        "net_flow": format_currency(net_flow, "US Dollar"),
+        "net_flow": format_currency(net_flow, currency),
         "fan_out_ratio": f"{fan_out_ratio:.2f}",
         "pass_through_ratio": f"{pass_through_ratio:.4f}",
         "previous_outgoing": out_tx,
@@ -584,7 +603,7 @@ def get_customer_profile(account_id, *args, **kwargs):
             {"metric": "Fan-Out Ratio", "historical": "—", "current": f"{fan_out_ratio:.2f}", "change": "High Fan-Out", "change_type": "high"},
             {"metric": "Outgoing Transactions", "historical": str(out_tx), "current": str(out_tx), "change": f"{out_tx} txs", "change_type": "high"},
             {"metric": "Unique Receivers", "historical": str(uniq_recs), "current": str(uniq_recs), "change": f"{uniq_recs} accounts", "change_type": "high"},
-            {"metric": "Total Outgoing Volume", "historical": format_currency(tot_out, "US Dollar"), "current": format_currency(tot_out, "US Dollar"), "change": "High Inflow/Outflow", "change_type": "high"},
+            {"metric": "Total Outgoing Volume", "historical": format_currency(tot_out, currency), "current": format_currency(tot_out, currency), "change": "High Inflow/Outflow", "change_type": "high"},
             {"metric": "Pass Through Ratio", "historical": "—", "current": f"{pass_through_ratio:.4f}", "change": "—", "change_type": "medium"},
         ]
     }
