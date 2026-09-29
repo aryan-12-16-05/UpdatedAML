@@ -106,11 +106,32 @@ class DatasetManager:
         from sqlalchemy import create_engine
         import streamlit as st
         
-        DB_HOST = st.secrets.get("DB_HOST", "gateway01.ap-northeast-1.prod.aws.tidbcloud.com")
-        DB_PORT = st.secrets.get("DB_PORT", 4000)
-        DB_USER = st.secrets.get("DB_USER", "3JTMKeEP2m268Uk.root")
-        DB_PASSWORD = st.secrets.get("DB_PASSWORD", "KUOElkUyvNZX8HBL")
-        DB_NAME = st.secrets.get("DB_NAME", "aml_fraud_db")
+        # Fallback defaults
+        DB_HOST = "gateway01.ap-northeast-1.prod.aws.tidbcloud.com"
+        DB_PORT = 4000
+        DB_USER = "3JTMKeEP2m268Uk.root"
+        DB_PASSWORD = "KUOElkUyvNZX8HBL"
+        DB_NAME = "aml_fraud_db"
+
+        try:
+            if hasattr(st, "secrets") and "DB_HOST" in st.secrets:
+                DB_HOST = st.secrets.get("DB_HOST", DB_HOST)
+                DB_PORT = st.secrets.get("DB_PORT", DB_PORT)
+                DB_USER = st.secrets.get("DB_USER", DB_USER)
+                DB_PASSWORD = st.secrets.get("DB_PASSWORD", DB_PASSWORD)
+                DB_NAME = st.secrets.get("DB_NAME", DB_NAME)
+            else:
+                try:
+                    DB_HOST = st.secrets.get("DB_HOST", DB_HOST)
+                    DB_PORT = st.secrets.get("DB_PORT", DB_PORT)
+                    DB_USER = st.secrets.get("DB_USER", DB_USER)
+                    DB_PASSWORD = st.secrets.get("DB_PASSWORD", DB_PASSWORD)
+                    DB_NAME = st.secrets.get("DB_NAME", DB_NAME)
+                except:
+                    pass
+        except Exception:
+            pass
+
         encoded_password = urllib.parse.quote_plus(DB_PASSWORD)
         engine = create_engine(
             f"mysql+pymysql://{DB_USER}:{encoded_password}@{DB_HOST}:{DB_PORT}/{DB_NAME}",
