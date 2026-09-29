@@ -419,6 +419,9 @@ if page == "Dashboard":
         fan_rows = fraud_data.get_fan_out_rows(st.session_state.selected_tx_id, include_source=True)
         if fan_rows:
             df_fan = pd.DataFrame(fan_rows)
+            # Guarantee Source is always at the top regardless of any other conditions
+            if "is_source" in df_fan.columns:
+                df_fan = df_fan.sort_values("is_source", ascending=False).reset_index(drop=True)
             df_display = df_fan[["role", "account", "to_entity_name", "amount", "time", "payment_format", "gat_signal"]].copy()
             df_display.columns = ["Role", "Account Number", "Entity Name", "Amount", "Timestamp", "Payment Format", "GAT Signal"]
         else:
@@ -431,7 +434,7 @@ if page == "Dashboard":
             hide_index=True,
             on_select="rerun",
             selection_mode="single-row",
-            key="fan_table"
+            key=f"fan_table_{st.session_state.selected_tx_id}"
         )
 
         # Handle row selection → populate right panel

@@ -476,7 +476,7 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
     total_amt = float(group_info.get("amount", gdf["Amount Paid"].sum() if "Amount Paid" in gdf.columns else 0.0))
 
     if include_source:
-        # 1. Source / Sender row
+        # 1. Source / Sender row (Pseudo-row for UI representation)
         rows.append({
             "sub_tx_id": f"SRC-{from_acc[:8]}",
             "role": "Source (Sender)",
@@ -484,7 +484,7 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
             "to_account": from_acc,
             "is_source": True,
             "amount": f"Total Out: {format_currency(total_amt, currency)}",
-            "time": str(first_row.get("Timestamp", group_info.get("timestamp", "—"))),
+            "time": "—",  # Not a real transaction
             "raw_amount_paid": total_amt,
             "raw_amount_received": total_amt,
             "currency": currency,
@@ -493,7 +493,7 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
             "to_entity_id": str(sender_prof.get("Entity ID", group_info.get("entity_id", f"ENT-{from_acc[:8]}"))),
             "to_bank_name": str(sender_prof.get("Bank Name", group_info.get("bank_name", "Global Bank"))),
             "to_bank_id": str(sender_prof.get("Bank ID", group_info.get("bank_id", "BNK-001"))),
-            "payment_format": str(first_row.get("Payment Format", group_info.get("payment_format", "Wire"))),
+            "payment_format": "—",  # Not a real transaction
             "previous_outgoing": sender_prof.get("Outgoing_Transactions", 0),
             "previous_incoming": sender_prof.get("Incoming_Transactions", 0),
             "unique_senders": sender_prof.get("Unique_Senders", 0),
@@ -502,7 +502,7 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
             "total_outgoing": format_currency(sender_prof.get("Total_Outgoing_Amount", total_amt), currency),
             "avg_tx_amount": format_currency(sender_prof.get("Average_Outgoing_Amount", total_amt), currency),
             "gat_prob": float(group_info.get("gat_prob", 0.99)),
-            "gat_signal": str(group_info.get("gat_signal", "HIGH RISK")),
+            "gat_signal": "—",  # Hide from source row
             "actual_label": int(first_row.get("Actual Label", 1)),
         })
 
