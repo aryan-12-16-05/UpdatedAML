@@ -520,7 +520,9 @@ if page in ["Dashboard", "Decisions"]:
                 st.success(f"**Decision Recorded:** {decision_val}")
                 st.info(f"**Authorised Bank Auditor Notes:** {already_submitted['notes'] or '(none)'}")
                 if st.button("Revise Decision", key=f"revise_{tx_key}"):
-                    del st.session_state.human_decision_submitted[tx_key]
+                    if tx_key in st.session_state.human_decision_submitted:
+                        del st.session_state.human_decision_submitted[tx_key]
+                    decisions_db.remove_analyst_decision(tx_key)
                     st.rerun()
             else:
                 dec_col1, dec_col2 = st.columns([1, 1])
