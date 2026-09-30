@@ -254,7 +254,7 @@ with st.sidebar:
     default_page_idx = 1 if st.session_state.goto_graph else 0
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Alerts / Graph Network", "Metrics"],
+        ["Dashboard", "Alerts / Graph Network", "Decisions", "Metrics"],
         index=default_page_idx,
         label_visibility="collapsed"
     )
@@ -285,7 +285,7 @@ st.write("")
 # ══════════════════════════════════════════════════════════════════════════════
 #  DASHBOARD PAGE
 # ══════════════════════════════════════════════════════════════════════════════
-if page == "Dashboard":
+if page in ["Dashboard", "Decisions"]:
 
     # Top Banner with real dataset counts
     with st.spinner("Connecting to TiDB and loading initial data (this might take a moment)..."):
@@ -331,9 +331,21 @@ if page == "Dashboard":
     #  LEFT PANEL — Flagged Accounts (Fan-Out Groups)
     # ════════════════════════════════════════════════════════════════════
     with col_left:
-        st.html('<div class="section-label">🚨 Flagged Sender Investigations</div>')
+        if page == "Dashboard":
+            st.html('<div class="section-label">🚨 Flagged Sender Investigations</div>')
+        else:
+            st.html('<div class="section-label">✅ Evaluated Decisions</div>')
 
-        all_txs = fraud_data.get_all_flagged_senders()
+        all_txs_raw = fraud_data.get_all_flagged_senders()
+        import decisions_db
+        mysql_decisions = decisions_db.get_analyst_decisions()
+        all_txs = []
+        for tx in all_txs_raw:
+            tx_key = tx.get("tx_id", f"GROUP-{tx.get('group_id', 1)}")
+            if page == "Dashboard" and tx_key not in mysql_decisions:
+                all_txs.append(tx)
+            elif page == "Decisions" and tx_key in mysql_decisions:
+                all_txs.append(tx)
         
         risk_filter = st.selectbox("Filter by Risk", ["All", "High", "Medium", "Low"], label_visibility="collapsed")
         
@@ -964,13 +976,16 @@ elif page == "Metrics":
     with tab_train:
         st.markdown("### 📊 Training Set Performance")
         st.markdown("Metrics evaluated on the massive 7,000,000 transaction training graph.")
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Precision", "0.9948")
-        m2.metric("Recall", "0.9975")
-        m3.metric("F1 Score", "0.9962")
-        m4.metric("Accuracy", "0.9966")
-        m5.metric("ROC-AUC", "0.9999")
-        m6.metric("PR-AUC", "0.9998")
+        
+        train_df = pd.DataFrame({
+            "Precision": ["0.9948"],
+            "Recall": ["0.9975"],
+            "F1 Score": ["0.9962"],
+            "Accuracy": ["0.9966"],
+            "ROC-AUC": ["0.9999"],
+            "PR-AUC": ["0.9998"]
+        })
+        st.table(train_df)
 
         st.markdown("---")
         st.markdown("#### Confusion Matrix")
@@ -979,13 +994,16 @@ elif page == "Metrics":
     with tab_test:
         st.markdown("### 📊 Testing Set Performance")
         st.markdown("Metrics evaluated on the unseen 1,500,000 transaction testing graph.")
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Precision", "0.9988")
-        m2.metric("Recall", "0.9984")
-        m3.metric("F1 Score", "0.9986")
-        m4.metric("Accuracy", "0.9978")
-        m5.metric("ROC-AUC", "0.9998")
-        m6.metric("PR-AUC", "0.9999")
+        
+        test_df = pd.DataFrame({
+            "Precision": ["0.9988"],
+            "Recall": ["0.9984"],
+            "F1 Score": ["0.9986"],
+            "Accuracy": ["0.9978"],
+            "ROC-AUC": ["0.9998"],
+            "PR-AUC": ["0.9999"]
+        })
+        st.table(test_df)
 
         st.markdown("---")
         st.markdown("#### Confusion Matrix")
