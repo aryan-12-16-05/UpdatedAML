@@ -220,7 +220,14 @@ st.html(textwrap.dedent("""
 
 # ─── Session State Initialization ────────────────────────────────────────
 if "selected_tx_id" not in st.session_state:
-    st.session_state.selected_tx_id = "GROUP-1"
+    try:
+        flagged_initial = fraud_data.get_all_flagged_senders()
+        if flagged_initial:
+            st.session_state.selected_tx_id = flagged_initial[0]["tx_id"]
+        else:
+            st.session_state.selected_tx_id = "GROUP-1"
+    except Exception:
+        st.session_state.selected_tx_id = "GROUP-1"
 if "selected_sub_tx" not in st.session_state:
     st.session_state.selected_sub_tx = None
 if "human_decision_submitted" not in st.session_state:
