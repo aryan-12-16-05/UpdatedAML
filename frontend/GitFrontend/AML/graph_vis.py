@@ -14,49 +14,60 @@ def _build_hover_text(node, data):
     node_type = data.get("node_type", "node")
     hop = data.get("hop", 0)
 
+    def is_valid(v):
+        return v is not None and str(v).strip() not in ["", "—", "None", "nan", "NaN"]
+
+    lines = []
     if hop == 0:
         # Source sender node
         profile = fraud_data.get_customer_profile(node)
-        return (
-            f"<b>🔴 SENDER ACCOUNT</b><br>"
-            f"<b>{profile.get('name', node)}</b><br>"
-            f"Account: {node}<br>"
-            f"KYC: {profile.get('kyc_status', '—')}<br>"
-            f"Risk Tier: {profile.get('risk_tier', '—')}<br>"
-            f"City: {profile.get('city', '—')}<br>"
-            f"Open Since: {profile.get('open_since', '—')}<br>"
-            f"Avg Tx Amt: {profile.get('avg_tx_amount', '—')}<br>"
-            f"Total Outgoing: {profile.get('total_outgoing', '—')}"
-        )
+        lines.append("<b>🔴 SENDER ACCOUNT</b>")
+        lines.append(f"<b>{profile.get('name', node)}</b>")
+        lines.append(f"Account: {node}")
+        
+        for key, label in [('kyc_status', 'KYC'), ('risk_tier', 'Risk Tier'), ('city', 'City'), 
+                           ('open_since', 'Open Since'), ('avg_tx_amount', 'Avg Tx Amt'), 
+                           ('total_outgoing', 'Total Outgoing')]:
+            val = profile.get(key)
+            if is_valid(val):
+                lines.append(f"{label}: {val}")
+
     elif hop == 1:
         # First-hop receiver
         profile = fraud_data.get_receiver_profile(node)
-        risk_color = "🔴" if "High" in profile.get("risk_tier", "") else "🟡"
-        return (
-            f"<b>{risk_color} HOP-1 RECEIVER</b><br>"
-            f"<b>{profile.get('name', node)}</b><br>"
-            f"Account: {node}<br>"
-            f"KYC: {profile.get('kyc_status', '—')}<br>"
-            f"Risk Tier: {profile.get('risk_tier', '—')}<br>"
-            f"City: {profile.get('city', '—')}<br>"
-            f"Open Since: {profile.get('open_since', '—')}<br>"
-            f"Total Incoming: {profile.get('total_incoming', '—')}<br>"
-            f"Total Outgoing: {profile.get('total_outgoing', '—')}<br>"
-            f"<i>{profile.get('notes', '')}</i>"
-        )
+        risk_color = "🔴" if "High" in str(profile.get("risk_tier", "")) else "🟡"
+        lines.append(f"<b>{risk_color} HOP-1 RECEIVER</b>")
+        lines.append(f"<b>{profile.get('name', node)}</b>")
+        lines.append(f"Account: {node}")
+        
+        for key, label in [('kyc_status', 'KYC'), ('risk_tier', 'Risk Tier'), ('city', 'City'), 
+                           ('open_since', 'Open Since'), ('total_incoming', 'Total Incoming'), 
+                           ('total_outgoing', 'Total Outgoing')]:
+            val = profile.get(key)
+            if is_valid(val):
+                lines.append(f"{label}: {val}")
+                
+        notes = profile.get("notes")
+        if is_valid(notes):
+            lines.append(f"<i>{notes}</i>")
+
     elif hop == 2:
         # Second-hop node
         h2p = fraud_data.HOP2_PROFILES.get(node, {})
-        return (
-            f"<b>⬡ HOP-2 NODE</b><br>"
-            f"<b>{h2p.get('name', node)}</b><br>"
-            f"Account: {node}<br>"
-            f"KYC: {h2p.get('kyc_status', '—')}<br>"
-            f"Risk Tier: {h2p.get('risk_tier', '—')}<br>"
-            f"City: {h2p.get('city', '—')}"
-        )
+        lines.append("<b>⬡ HOP-2 NODE</b>")
+        lines.append(f"<b>{h2p.get('name', node)}</b>")
+        lines.append(f"Account: {node}")
+        
+        for key, label in [('kyc_status', 'KYC'), ('risk_tier', 'Risk Tier'), ('city', 'City')]:
+            val = h2p.get(key)
+            if is_valid(val):
+                lines.append(f"{label}: {val}")
     else:
-        return f"Account: {node}<br>Role: {node_type.capitalize()}"
+        lines.append(f"Account: {node}")
+        if is_valid(node_type):
+            lines.append(f"Role: {str(node_type).capitalize()}")
+
+    return "<br>".join(lines)
 
 
 def render_plotly_graph(tx_id, include_2hop=True):
