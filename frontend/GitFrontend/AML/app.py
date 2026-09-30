@@ -254,7 +254,7 @@ with st.sidebar:
     default_page_idx = 1 if st.session_state.goto_graph else 0
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Alerts / Graph Network", "Macro Analytics", "Metrics"],
+        ["Dashboard", "Alerts / Graph Network", "Metrics"],
         index=default_page_idx,
         label_visibility="collapsed"
     )
@@ -873,244 +873,81 @@ The GAT AML model provides pattern analysis and risk probabilities to *support* 
     """)
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  MACRO ANALYTICS PAGE
-# ══════════════════════════════════════════════════════════════════════════════
-elif page == "Macro Analytics":
-    st.title("📈 Macro Analytics Dashboard")
-    st.markdown("High-level overview of flagged transactions, total illicit money stopped, and bank risk exposure.")
-    
-    # Get dataset
-    df_all = fraud_data.get_transactions_df()
-    
-    # Calculate real stats
-    high_risk_df = df_all[df_all["GAT Signal"] == "HIGH RISK"]
-    
-    # Approximate USD amount since Amounts might be mixed in the raw DB
-    # We can use the format_currency logic but for macro level, we can just sum a rough USD equivalent
-    total_illicit = 0.0
-    for _, row in high_risk_df.iterrows():
-        amt = float(row.get("Amount Paid", 0.0))
-        curr = str(row.get("Payment Currency", "US Dollar"))
-        rate = fraud_data.USD_CONVERSION_RATES.get(curr, 1.0)
-        total_illicit += (amt * rate)
-        
-    total_illicit_str = fraud_data.format_currency(total_illicit, "US Dollar")
-    
-    total_flags = len(high_risk_df)
-    import decisions_db
-    decisions = decisions_db.get_analyst_decisions()
-    decisions_count = len(decisions)
-    
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.html(f"""
-        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 2px 4px rgba(0,0,0,0.03);">
-            <div style="font-size:13px;color:#64748b;font-weight:600;text-transform:uppercase;">Total Illicit Funds Exposed</div>
-            <div style="font-size:28px;font-weight:800;color:#dc2626;margin-top:5px;">{total_illicit_str}</div>
-            <div style="font-size:12px;color:#10b981;margin-top:5px;">↑ Tracking {total_flags:,} suspicious transfers</div>
-        </div>
-        """)
-    with c2:
-        top_bank = high_risk_df["Bank Name"].value_counts().index[0] if not high_risk_df.empty else "N/A"
-        top_bank_cnt = high_risk_df["Bank Name"].value_counts().iloc[0] if not high_risk_df.empty else 0
-        st.html(f"""
-        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 2px 4px rgba(0,0,0,0.03);">
-            <div style="font-size:13px;color:#64748b;font-weight:600;text-transform:uppercase;">Top Flagged Bank</div>
-            <div style="font-size:28px;font-weight:800;color:#0f172a;margin-top:5px;">{top_bank}</div>
-            <div style="font-size:12px;color:#f59e0b;margin-top:5px;">⚠️ {top_bank_cnt:,} High-Risk Flags</div>
-        </div>
-        """)
-    with c3:
-        st.html(f"""
-        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;box-shadow:0 2px 4px rgba(0,0,0,0.03);">
-            <div style="font-size:13px;color:#64748b;font-weight:600;text-transform:uppercase;">Analyst Decisions</div>
-            <div style="font-size:28px;font-weight:800;color:#2563eb;margin-top:5px;">{decisions_count}</div>
-            <div style="font-size:12px;color:#64748b;margin-top:5px;">Total resolutions submitted</div>
-        </div>
-        """)
-        
-    st.write("")
-    
-    # CHARTS
-    colA, colB = st.columns([2, 1])
-    
-    with colA:
-        st.markdown("#### Suspected Fan-Out Volume Over Time")
-        if "Timestamp" in high_risk_df.columns and not high_risk_df.empty:
-            df_time = high_risk_df.copy()
-            df_time["Timestamp"] = pd.to_datetime(df_time["Timestamp"], errors='coerce')
-            df_time = df_time.dropna(subset=["Timestamp"])
-            if not df_time.empty:
-                df_time["Date"] = df_time["Timestamp"].dt.date
-                daily_vols = df_time.groupby("Date").size().reset_index(name="Count")
-                
-                fig1 = go.Figure()
-                fig1.add_trace(go.Scatter(
-                    x=daily_vols["Date"], y=daily_vols["Count"],
-                    mode='lines+markers',
-                    line=dict(color='#ef4444', width=3),
-                    marker=dict(size=6, color='#dc2626'),
-                    fill='tozeroy',
-                    fillcolor='rgba(239, 68, 68, 0.1)'
-                ))
-                fig1.update_layout(
-                    margin=dict(l=0, r=0, t=20, b=0),
-                    paper_bgcolor='rgba(0,0,0,0)',
-                    plot_bgcolor='rgba(0,0,0,0)',
-                    xaxis=dict(showgrid=False),
-                    yaxis=dict(gridcolor='#f1f5f9')
-                )
-                st.plotly_chart(fig1, use_container_width=True)
-            else:
-                st.info("No valid timeseries data available.")
-        else:
-            st.info("No timestamp data available in dataset.")
-
-    with colB:
-        st.markdown("#### Suspicious Payment Formats")
-        if not high_risk_df.empty:
-            fmt_counts = high_risk_df["Payment Format"].value_counts().reset_index()
-            fmt_counts.columns = ["Format", "Count"]
-            
-            fig2 = go.Figure(data=[go.Pie(
-                labels=fmt_counts["Format"], 
-                values=fmt_counts["Count"],
-                hole=0.6,
-                marker=dict(colors=['#3b82f6', '#f59e0b', '#10b981', '#6366f1', '#ec4899'])
-            )])
-            fig2.update_layout(
-                margin=dict(l=0, r=0, t=20, b=0),
-                showlegend=True,
-                legend=dict(orientation="h", yanchor="bottom", y=-0.2, xanchor="center", x=0.5)
-            )
-            st.plotly_chart(fig2, use_container_width=True)
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  MODEL METRICS PAGE
+#  MODEL METRICS PAGE (Non-Technical UI)
 # ══════════════════════════════════════════════════════════════════════════════
 elif page == "Metrics":
-    st.html(textwrap.dedent("""
+    st.html(textwrap.dedent('''
     <div class="center-card" style="margin-bottom:20px;">
-        <h2 style="margin:0;color:#0f172a;font-weight:800;">GAT Model Evaluation Metrics</h2>
-        <p style="color:#64748b;font-size:14px;margin-top:5px;">
-            Comprehensive performance metrics for the Graph Attention Network (GAT) AML Detection Model across Training, Validation, and Test datasets.
+        <h2 style="margin:0;color:#0f172a;font-weight:800;">How the AI Works & Its Accuracy</h2>
+        <p style="color:#64748b;font-size:15px;margin-top:5px;">
+            A simple breakdown of how our AI detects hidden money laundering rings and how accurate it is.
         </p>
     </div>
-    """))
+    '''))
 
-    tab_arch, tab_train, tab_val, tab_test = st.tabs(["Model Architecture", "Training Data (7M)", "Validation Data (1.5M)", "Test Data (1.5M)"])
+    st.markdown("### 🧠 How does the AI make decisions?")
+    st.markdown('''
+    Instead of just looking at a single transaction in isolation, our AI uses a **Graph Neural Network**. 
+    This means it looks at the entire "web" of money movement to catch complex laundering patterns like **Fan-Outs** (one person sending money to many) or **Cycles**.
+    ''')
 
-    with tab_arch:
-        st.markdown("### 🧠 Graph Attention Network (GATv2) Architecture")
-        st.html(textwrap.dedent("""
-        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;">
-            <h4 style="color:#0f172a;margin-top:0;font-size:16px;">1. Node Feature Encoding (Input)</h4>
-            <div style="color:#475569;font-size:14px;"><strong>Input Dimension:</strong> 13 Causal Node Features</div>
-            <div style="color:#475569;font-size:14px;margin-top:4px;"><strong>Operation:</strong> Linear Projection (13 &rarr; 64) + ReLU Activation</div>
+    st.html(textwrap.dedent('''
+    <div style="display:flex;gap:15px;margin-bottom:25px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:250px;background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;border-top:4px solid #3b82f6;box-shadow:0 2px 4px rgba(0,0,0,0.02);">
+            <h4 style="margin-top:0;color:#1e40af;font-size:16px;">1. What it sees (Input)</h4>
+            <p style="color:#475569;font-size:14px;">It looks at the sender's history, the receiver's history, and the transaction details (amount, currency, time).</p>
         </div>
-        
-        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;border-left:4px solid #3b82f6;">
-            <h4 style="color:#0f172a;margin-top:0;font-size:16px;">2. Graph Attention Layers (GATv2)</h4>
-            <div style="color:#475569;font-size:14px;margin-bottom:6px;"><strong>Layer 1:</strong> GATv2Conv (in=64, out=16, heads=4, edge_dim=20) &rarr; Concat to 64</div>
-            <div style="color:#475569;font-size:14px;margin-bottom:12px;padding-left:14px;border-left:2px solid #cbd5e1;"><strong>Regularization:</strong> Residual Connection + LayerNorm(64)</div>
-            <div style="color:#475569;font-size:14px;margin-bottom:6px;"><strong>Layer 2:</strong> GATv2Conv (in=64, out=16, heads=4, edge_dim=20) &rarr; Concat to 64</div>
-            <div style="color:#475569;font-size:14px;padding-left:14px;border-left:2px solid #cbd5e1;"><strong>Regularization:</strong> Residual Connection + LayerNorm(64)</div>
+        <div style="flex:1;min-width:250px;background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;border-top:4px solid #8b5cf6;box-shadow:0 2px 4px rgba(0,0,0,0.02);">
+            <h4 style="margin-top:0;color:#5b21b6;font-size:16px;">2. How it thinks (The Brain)</h4>
+            <p style="color:#475569;font-size:14px;">It connects the dots. If the sender is connected to known suspicious accounts, the AI pays closer attention.</p>
         </div>
-        
-        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;border-left:4px solid #ef4444;">
-            <h4 style="color:#0f172a;margin-top:0;font-size:16px;">3. Edge-Level Classification Head</h4>
-            <div style="color:#475569;font-size:14px;margin-bottom:8px;"><strong>Concatenation:</strong> Source Node (64) + Dest Node (64) + Target Edge Features (20) = <strong>148 Dimensions</strong></div>
-            <ul style="color:#475569;font-size:14px;margin-bottom:12px;line-height:1.6;">
-                <li>Linear (148 &rarr; 64) &rarr; ReLU &rarr; Dropout (0.1)</li>
-                <li>Linear (64 &rarr; 32) &rarr; ReLU</li>
-                <li>Linear (32 &rarr; 1) &rarr; Sigmoid Activation</li>
-            </ul>
-            <div style="color:#0f172a;font-weight:700;font-size:14px;background:#fef2f2;padding:8px 12px;border-radius:6px;display:inline-block;border:1px solid #fecaca;">
-                Output: Anti-Money Laundering (AML) Risk Probability (0.0 to 1.0)
-            </div>
+        <div style="flex:1;min-width:250px;background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;border-top:4px solid #ef4444;box-shadow:0 2px 4px rgba(0,0,0,0.02);">
+            <h4 style="margin-top:0;color:#991b1b;font-size:16px;">3. What it decides (Output)</h4>
+            <p style="color:#475569;font-size:14px;">It gives a final <strong>Risk Score (0% to 100%)</strong>. If the score is very high, it alerts the banking auditors.</p>
         </div>
-        """))
+    </div>
+    '''))
 
-    def plot_confusion_matrix(tn, fp, fn, tp):
-        fig = go.Figure(data=go.Heatmap(
-            z=[[tn, fp], [fn, tp]],
-            x=['Predicted Legitimate', 'Predicted Laundering'],
-            y=['Actual Legitimate', 'Actual Laundering'],
-            colorscale='Blues',
-            text=[[f"TN<br>{tn:,}", f"FP<br>{fp:,}"], [f"FN<br>{fn:,}", f"TP<br>{tp:,}"]],
-            texttemplate="%{text}",
-            textfont={"size": 14},
-            hoverinfo="none",
-            showscale=False
-        ))
-        fig.update_layout(
-            margin=dict(l=0, r=0, t=30, b=0),
-            height=300,
-            xaxis=dict(side='bottom'),
-            yaxis=dict(autorange='reversed')
-        )
-        return fig
+    st.markdown("### 📊 How accurate is it?")
+    st.markdown("We tested the AI on millions of historical transactions. Here is how well it performs in the real world.")
 
-    with tab_train:
-        st.markdown("### 📊 Training Set Performance")
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Precision", "0.9948")
-        m2.metric("Recall", "0.9975")
-        m3.metric("F1 Score", "0.9962")
-        m4.metric("Accuracy", "0.9966")
-        m5.metric("ROC-AUC", "0.9999")
-        m6.metric("PR-AUC", "0.9998")
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.html('''
+        <div style="background:#f0fdf4;padding:20px;border-radius:12px;border:1px solid #bbf7d0;text-align:center;">
+            <div style="font-size:32px;font-weight:800;color:#166534;">99.8%</div>
+            <div style="font-size:15px;font-weight:600;color:#15803d;margin-top:5px;">Overall Accuracy</div>
+            <div style="font-size:13px;color:#166534;margin-top:5px;">The percentage of times the AI was completely correct.</div>
+        </div>
+        ''')
 
-        st.markdown("---")
-        col_cm, col_stat = st.columns([1.5, 1])
-        with col_cm:
-            st.markdown("#### Confusion Matrix")
-            st.plotly_chart(plot_confusion_matrix(3888208, 15918, 7539, 3088335), use_container_width=True)
-        with col_stat:
-            st.markdown("#### Alert Statistics")
-            st.info("**Total Transactions:** 7,000,000")
-            st.warning("**Alerts Generated:** 3,104,253")
-            st.error("**Alert Rate:** 44.34%")
+    with col2:
+        st.html('''
+        <div style="background:#eff6ff;padding:20px;border-radius:12px;border:1px solid #bfdbfe;text-align:center;">
+            <div style="font-size:32px;font-weight:800;color:#1e40af;">99.8%</div>
+            <div style="font-size:15px;font-weight:600;color:#1d4ed8;margin-top:5px;">Detection Rate</div>
+            <div style="font-size:13px;color:#1e40af;margin-top:5px;">Out of all the actual laundering cases, we successfully caught 99.8%.</div>
+        </div>
+        ''')
 
-    with tab_val:
-        st.markdown("### 📊 Validation Set Performance")
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Precision", "0.9982")
-        m2.metric("Recall", "0.9938")
-        m3.metric("F1 Score", "0.9960")
-        m4.metric("Accuracy", "0.9963")
-        m5.metric("ROC-AUC", "0.9999")
-        m6.metric("PR-AUC", "0.9999")
+    with col3:
+        st.html('''
+        <div style="background:#fef2f2;padding:20px;border-radius:12px;border:1px solid #fecaca;text-align:center;">
+            <div style="font-size:32px;font-weight:800;color:#991b1b;">Very Low</div>
+            <div style="font-size:15px;font-weight:600;color:#b91c1c;margin-top:5px;">False Alarms</div>
+            <div style="font-size:13px;color:#991b1b;margin-top:5px;">When the AI flags a transaction, it is almost always genuinely suspicious.</div>
+        </div>
+        ''')
 
-        st.markdown("---")
-        col_cm, col_stat = st.columns([1.5, 1])
-        with col_cm:
-            st.markdown("#### Confusion Matrix")
-            st.plotly_chart(plot_confusion_matrix(817682, 1211, 4195, 676912), use_container_width=True)
-        with col_stat:
-            st.markdown("#### Alert Statistics")
-            st.info("**Total Transactions:** 1,500,000")
-            st.warning("**Alerts Generated:** 678,123")
-            st.error("**Alert Rate:** 45.20%")
-
-    with tab_test:
-        st.markdown("### 📊 Test Set Performance")
-        m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Precision", "0.9988")
-        m2.metric("Recall", "0.9984")
-        m3.metric("F1 Score", "0.9986")
-        m4.metric("Accuracy", "0.9978")
-        m5.metric("ROC-AUC", "0.9998")
-        m6.metric("PR-AUC", "0.9999")
-
-        st.markdown("---")
-        col_cm, col_stat = st.columns([1.5, 1])
-        with col_cm:
-            st.markdown("#### Confusion Matrix")
-            st.plotly_chart(plot_confusion_matrix(275610, 1371, 1890, 1221129), use_container_width=True)
-        with col_stat:
-            st.markdown("#### Alert Statistics")
-            st.info("**Total Transactions:** 1,500,000")
-            st.warning("**Alerts Generated:** 1,222,500")
-            st.error("**Alert Rate:** 81.50%")
-
+    st.markdown("<br>", unsafe_allow_html=True)
+    with st.expander("Show Detailed Technical Metrics (For Data Scientists)"):
+        st.markdown('''
+        **Test Set Performance (1.5 Million Transactions)**
+        * **Precision:** 0.9988
+        * **Recall:** 0.9984
+        * **F1 Score:** 0.9986
+        * **Accuracy:** 0.9978
+        * **ROC-AUC:** 0.9998
+        * **PR-AUC:** 0.9999
+        ''')
