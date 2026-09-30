@@ -99,7 +99,7 @@ def retroactively_label_sender(sender_account: str, detected_probability: float,
                         behavior_signal      = 'FAN-OUT',
                         fan_out_group        = :grp
                     WHERE from_account = :acc
-                      AND actual_label != 1
+                      AND (actual_label != 1 OR actual_label IS NULL)
                 """),
                 {
                     "prob": round(detected_probability, 6),
@@ -161,7 +161,7 @@ def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
     from sqlalchemy import text
 
     engine = _get_engine()
-    actual_label    = 1 if is_fraud else 0
+    actual_label    = None  # Unknown ground-truth for live transaction
     behavior_signal = "FAN-OUT" if is_fraud else "LEGITIMATE"
 
     try:
@@ -200,7 +200,7 @@ def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
                     ON DUPLICATE KEY UPDATE
                         gat_risk_level       = VALUES(gat_risk_level),
                         gat_risk_probability = VALUES(gat_risk_probability),
-                        actual_label         = VALUES(actual_label)
+                        actual_label         = IF(actual_label IS NULL, VALUES(actual_label), actual_label)
                 """),
                 {
                     "txid"    : str(tx_dict.get("Transaction ID",   tx_dict.get("transaction_id",   "LIVE-" + datetime.utcnow().strftime("%f")))),
