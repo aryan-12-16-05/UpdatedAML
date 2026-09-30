@@ -998,7 +998,38 @@ elif page == "Metrics":
     </div>
     """))
 
-    tab_train, tab_val, tab_test = st.tabs(["Training Data (7M)", "Validation Data (1.5M)", "Test Data (1.5M)"])
+    tab_arch, tab_train, tab_val, tab_test = st.tabs(["Model Architecture", "Training Data (7M)", "Validation Data (1.5M)", "Test Data (1.5M)"])
+
+    with tab_arch:
+        st.markdown("### 🧠 Graph Attention Network (GATv2) Architecture")
+        st.html(textwrap.dedent("""
+        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;">
+            <h4 style="color:#0f172a;margin-top:0;font-size:16px;">1. Node Feature Encoding (Input)</h4>
+            <div style="color:#475569;font-size:14px;"><strong>Input Dimension:</strong> 13 Causal Node Features</div>
+            <div style="color:#475569;font-size:14px;margin-top:4px;"><strong>Operation:</strong> Linear Projection (13 &rarr; 64) + ReLU Activation</div>
+        </div>
+        
+        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;border-left:4px solid #3b82f6;">
+            <h4 style="color:#0f172a;margin-top:0;font-size:16px;">2. Graph Attention Layers (GATv2)</h4>
+            <div style="color:#475569;font-size:14px;margin-bottom:6px;"><strong>Layer 1:</strong> GATv2Conv (in=64, out=16, heads=4, edge_dim=20) &rarr; Concat to 64</div>
+            <div style="color:#475569;font-size:14px;margin-bottom:12px;padding-left:14px;border-left:2px solid #cbd5e1;"><strong>Regularization:</strong> Residual Connection + LayerNorm(64)</div>
+            <div style="color:#475569;font-size:14px;margin-bottom:6px;"><strong>Layer 2:</strong> GATv2Conv (in=64, out=16, heads=4, edge_dim=20) &rarr; Concat to 64</div>
+            <div style="color:#475569;font-size:14px;padding-left:14px;border-left:2px solid #cbd5e1;"><strong>Regularization:</strong> Residual Connection + LayerNorm(64)</div>
+        </div>
+        
+        <div style="background:white;padding:20px;border-radius:12px;border:1px solid #e2e8f0;margin-bottom:20px;border-left:4px solid #ef4444;">
+            <h4 style="color:#0f172a;margin-top:0;font-size:16px;">3. Edge-Level Classification Head</h4>
+            <div style="color:#475569;font-size:14px;margin-bottom:8px;"><strong>Concatenation:</strong> Source Node (64) + Dest Node (64) + Target Edge Features (20) = <strong>148 Dimensions</strong></div>
+            <ul style="color:#475569;font-size:14px;margin-bottom:12px;line-height:1.6;">
+                <li>Linear (148 &rarr; 64) &rarr; ReLU &rarr; Dropout (0.1)</li>
+                <li>Linear (64 &rarr; 32) &rarr; ReLU</li>
+                <li>Linear (32 &rarr; 1) &rarr; Sigmoid Activation</li>
+            </ul>
+            <div style="color:#0f172a;font-weight:700;font-size:14px;background:#fef2f2;padding:8px 12px;border-radius:6px;display:inline-block;border:1px solid #fecaca;">
+                Output: Anti-Money Laundering (AML) Risk Probability (0.0 to 1.0)
+            </div>
+        </div>
+        """))
 
     def plot_confusion_matrix(tn, fp, fn, tp):
         fig = go.Figure(data=go.Heatmap(
