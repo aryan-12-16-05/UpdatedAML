@@ -290,7 +290,8 @@ class DatasetManager:
 
             prev_out = int(sender_prof.get("Outgoing_Transactions", first_row.get("Historical_Outgoing_Count", len(gdf))))
             prev_in = int(sender_prof.get("Incoming_Transactions", first_row.get("Incoming_Transactions", 0)))
-            uniq_recv = int(sender_prof.get("Unique_Receivers", first_row.get("Historical_Unique_Receivers", gdf["To Account"].nunique() if "To Account" in gdf.columns else len(gdf))))
+            hist_uniq_recv = int(sender_prof.get("Unique_Receivers", first_row.get("Historical_Unique_Receivers", 0)))
+            episode_uniq_recv = gdf["To Account"].nunique() if "To Account" in gdf.columns else len(gdf)
             tx_count = len(gdf)
 
             summary = {
@@ -315,7 +316,7 @@ class DatasetManager:
                 "amount": total_amt,
                 "amount_formatted": format_currency(total_amt, currency),
                 "tx_count": tx_count,
-                "unique_receivers": uniq_recv,
+                "unique_receivers": hist_uniq_recv,
                 "unique_senders": sender_prof.get("Unique_Senders", 0),
                 "previous_outgoing": prev_out,
                 "previous_incoming": prev_in,
@@ -323,11 +324,11 @@ class DatasetManager:
                 "model_used": "GAT AML Model",
                 "model_confidence": f"{round(gat_prob * 100, 2)}%",
                 "explanations": [
-                    f"Fan-Out pattern detected: 1 sender ({from_acc}) → {uniq_recv} unique receivers",
+                    f"Fan-Out pattern detected: 1 sender ({from_acc}) → {episode_uniq_recv} unique receivers",
                     f"{tx_count} transactions recorded in this fan-out group",
                     f"Total fan-out outgoing volume: {format_currency(total_amt, currency)}",
-                    f"Previous outgoing transactions: {prev_out}",
-                    f"Previous incoming transactions: {prev_in}",
+                    f"Historical outgoing transactions: {prev_out}",
+                    f"Historical incoming transactions: {prev_in}",
                     f"GAT model probability: {gat_prob:.4f} ({gat_signal})",
                     f"Payment format: {payment_format} · Currency: {currency}",
                 ]
@@ -455,9 +456,13 @@ def get_transaction_by_id(tx_id_or_group_id):
                 "model_used": "GAT AML Model",
                 "model_confidence": f"{round(gat_prob * 100, 2)}%",
                 "explanations": [
-                    f"Fan-Out pattern detected: 1 sender ({from_acc}) → {len(gdf)} receivers",
+                    f"Fan-Out pattern detected: 1 sender ({from_acc}) → {gdf['To Account'].nunique() if 'To Account' in gdf.columns else len(gdf)} unique receivers",
                     f"{len(gdf)} transactions in this fan-out group",
-                    f"GAT model risk probability: {gat_prob:.4f} ({gat_signal})",
+                    f"Total fan-out outgoing volume: {format_currency(total_amt, currency)}",
+                    f"Historical outgoing transactions: {sender_prof.get('Outgoing_Transactions', len(gdf))}",
+                    f"Historical incoming transactions: {sender_prof.get('Incoming_Transactions', 0)}",
+                    f"GAT model probability: {gat_prob:.4f} ({gat_signal})",
+                    f"Payment format: {str(first_row.get('Payment Format', 'Wire'))} · Currency: {currency}",
                 ]
             }
     except Exception:
