@@ -182,9 +182,7 @@ def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
                         from_bank, to_bank,
                         fan_out_group,
                         actual_label, gat_risk_level, gat_risk_probability,
-                        behavior_signal,
-                        previous_outgoing, previous_incoming,
-                        detection_reason
+                        behavior_signal
                     ) VALUES (
                         :txid, :from_acc, :to_acc,
                         :amt_paid, :amt_recv,
@@ -193,9 +191,7 @@ def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
                         :from_bank, :to_bank,
                         :grp,
                         :label, :gat_lvl, :gat_prob,
-                        :bsig,
-                        :prev_out, :prev_in,
-                        :reason
+                        :bsig
                     )
                     ON DUPLICATE KEY UPDATE
                         gat_risk_level       = VALUES(gat_risk_level),
@@ -218,10 +214,7 @@ def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
                     "label"   : actual_label,
                     "gat_lvl" : gat_signal,
                     "gat_prob": gat_prob,
-                    "bsig"    : behavior_signal,
-                    "prev_out": int(tx_dict.get("previous_outgoing", 0)),
-                    "prev_in" : int(tx_dict.get("previous_incoming", 0)),
-                    "reason"  : f"Live inference: prob={gat_prob:.4f}"
+                    "bsig"    : behavior_signal
                 }
             )
             conn.commit()

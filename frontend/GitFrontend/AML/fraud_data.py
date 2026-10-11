@@ -1,6 +1,6 @@
 """
 AML Fraud Detection Data & Engine Layer for GitFrontend
-Uses real datasets from GitData/ (frontend (1).csv & customer_profiles.csv).
+Uses real datasets from GitData/ (test_transactions.csv & test_customer_profiles.csv).
 Filters strictly for HIGH RISK FAN-OUT investigations.
 Provides complete account profiling and graph topology.
 """
@@ -169,20 +169,27 @@ class DatasetManager:
         col_mapping = {
             "transaction_id": "Transaction ID",
             "from_account": "From Account",
+            "account": "From Account",
             "to_account": "To Account",
+            "account_1": "To Account",
             "amount_paid": "Amount Paid",
+            "amount_paid_usd": "Amount Paid",
             "amount_received": "Amount Received",
+            "amount_received_usd": "Amount Received",
             "payment_currency": "Payment Currency",
             "receiving_currency": "Receiving Currency",
             "payment_format": "Payment Format",
             "timestamp": "Timestamp",
             "fan_out_group": "Fan-out Group",
+            "episode_no": "Fan-out Group",
             "gat_risk_level": "GAT Signal",
             "gat_risk_probability": "GAT Probability",
             "behavior_signal": "Detection Pattern",
             "entity_name": "Entity Name",
             "bank_name": "Bank Name",
             "bank_id": "Bank ID",
+            "from_bank": "From Bank",
+            "to_bank": "To Bank",
             "entity_id": "Entity ID",
             "historical_outgoing_count": "Historical_Outgoing_Count",
             "historical_unique_receivers": "Historical_Unique_Receivers",
@@ -220,22 +227,33 @@ class DatasetManager:
         
         prof_col_mapping = {
             "account_number": "Account_Number",
+            "account_id": "Account_Number",
             "entity_name": "Entity Name",
             "bank_name": "Bank Name",
             "bank_id": "Bank ID",
             "entity_id": "Entity ID",
             "incoming_transactions": "Incoming_Transactions",
+            "incoming_transaction_count": "Incoming_Transactions",
             "outgoing_transactions": "Outgoing_Transactions",
+            "outgoing_transaction_count": "Outgoing_Transactions",
             "total_incoming_amount": "Total_Incoming_Amount",
+            "total_amount_received_usd": "Total_Incoming_Amount",
             "total_outgoing_amount": "Total_Outgoing_Amount",
+            "total_amount_paid_usd": "Total_Outgoing_Amount",
             "average_incoming_amount": "Average_Incoming_Amount",
+            "average_amount_received_usd": "Average_Incoming_Amount",
             "average_outgoing_amount": "Average_Outgoing_Amount",
+            "average_amount_paid_usd": "Average_Outgoing_Amount",
             "maximum_incoming_amount": "Maximum_Incoming_Amount",
+            "maximum_amount_received_usd": "Maximum_Incoming_Amount",
             "maximum_outgoing_amount": "Maximum_Outgoing_Amount",
+            "maximum_amount_paid_usd": "Maximum_Outgoing_Amount",
             "net_flow": "Net_Flow",
+            "net_received_minus_paid_usd": "Net_Flow",
             "unique_senders": "Unique_Senders",
             "unique_receivers": "Unique_Receivers",
             "total_degree": "Total_Degree",
+            "unique_counterparties": "Total_Degree",
             "fan_out_ratio": "Fan_Out_Ratio",
             "pass_through_ratio": "Pass_Through_Ratio"
         }

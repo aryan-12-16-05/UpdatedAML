@@ -102,12 +102,18 @@ class DatasetManager:
             return
 
         # 1. Load Transactions Dataset
-        trans_file = self._find_file(["frontend (1).csv", "frontend*.csv", "*fanout*.csv", "frontend_fanout_gat_test_grouped.csv"])
+        trans_file = self._find_file(["test_transactions.csv", "frontend (1).csv", "frontend*.csv", "*fanout*.csv", "frontend_fanout_gat_test_grouped.csv"])
         if not trans_file or not os.path.exists(trans_file):
             raise FileNotFoundError(f"Transactions CSV not found in: {GITDATA_DIR}")
 
         print(f"Loading transactions dataset from: {trans_file}")
         raw_df = pd.read_csv(trans_file)
+
+        # Standardize column names if coming from test_transactions.csv
+        if "Account" in raw_df.columns and "From Account" not in raw_df.columns:
+            raw_df.rename(columns={"Account": "From Account"}, inplace=True)
+        if "Account.1" in raw_df.columns and "To Account" not in raw_df.columns:
+            raw_df.rename(columns={"Account.1": "To Account"}, inplace=True)
 
         # Standardize group column names
         if "Fan_Out_Group" in raw_df.columns and "Fan-out Group" not in raw_df.columns:
@@ -148,8 +154,8 @@ class DatasetManager:
                 if "To Account" in gdf.columns:
                     active_accounts.update(gdf["To Account"].dropna().astype(str).str.strip())
 
-        # 2. Load Customer Profiles from customer_profiles.csv
-        profiles_file = self._find_file(["customer_profiles.csv", "*profile*.csv"])
+        # 2. Load Customer Profiles from customer_profiles.csv or test_customer_profiles.csv
+        profiles_file = self._find_file(["test_customer_profiles.csv", "customer_profiles.csv", "*profile*.csv"])
         self._profiles_map = {}
         if profiles_file and os.path.exists(profiles_file):
             print(f"Loading customer profiles from: {profiles_file}")

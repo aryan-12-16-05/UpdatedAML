@@ -128,16 +128,61 @@ def ingest_transaction():
     sender_account = str(data.get("From Account", data.get("from_account", ""))).strip()
     tx_id          = str(data.get("Transaction ID", data.get("transaction_id", "")))
 
-    # ── 2. Fetch sender's historical transactions from database ───────────────
+    # ── 2. Fetch sender's STRICT CAUSAL historical transactions directly from DB
     try:
-        dm          = fraud_data.get_dm()
-        full_df     = dm.get_df()
-        profiles_df = dm._profiles_df if hasattr(dm, "_profiles_df") else pd.DataFrame()
-
-        from_col = "From Account" if "From Account" in full_df.columns else "from_account"
-        history_df = full_df[
-            full_df[from_col].astype(str).str.strip() == sender_account
-        ].copy()
+        import fanout_updater
+        import pandas as pd
+        engine = fanout_updater._get_engine()
+        
+        # Parse timestamp safely
+        ts_raw = data.get("Timestamp", data.get("timestamp"))
+        if not ts_raw:
+            target_ts = datetime.utcnow()
+            data["Timestamp"] = target_ts.strftime("%Y-%m-%d %H:%M:%S")
+        else:
+            target_ts = pd.to_datetime(ts_raw)
+            
+        target_ts_str = target_ts.strftime("%Y-%m-%d %H:%M:%S")
+        
+        receiver_account = str(data.get("To Account", data.get("to_account", ""))).strip()
+        # We must explicitly forbid future transactions and the current transaction itself
+        # Retrieve causal context for both source and destination nodes
+        history_query = """
+            SELECT * FROM transactions 
+            WHERE (from_account = %s OR to_account = %s OR from_account = %s OR to_account = %s)
+              AND timestamp < %s
+            ORDER BY timestamp ASC
+        """
+        history_df = pd.read_sql(history_query, engine, params=(sender_account, sender_account, receiver_account, receiver_account, target_ts_str))
+        
+        # Rename columns to match the standard expected by inference
+        col_mapping = {
+            "transaction_id": "Transaction ID",
+            "from_account": "From Account",
+            "to_account": "To Account",
+            "amount_paid": "Amount Paid",
+            "amount_received": "Amount Received",
+            "payment_currency": "Payment Currency",
+            "receiving_currency": "Receiving Currency",
+            "payment_format": "Payment Format",
+            "timestamp": "Timestamp",
+            "fan_out_group": "Fan-out Group"
+        }
+        history_df.rename(columns=col_mapping, inplace=True)
+        
+        # Assertions (Phase 5: Explicit Future-Leakage Guard)
+        if not history_df.empty:
+            history_df["Timestamp"] = pd.to_datetime(history_df["Timestamp"])
+            future_mask = history_df["Timestamp"] >= target_ts
+            if future_mask.any():
+                raise ValueError(f"CRITICAL CAUSAL LEAK: Found {future_mask.sum()} transactions on or after target timestamp {target_ts_str}")
+        
+        # Get profiles safely
+        try:
+            dm = fraud_data.get_dm()
+            profiles_df = dm._profiles_df if hasattr(dm, "_profiles_df") else pd.DataFrame()
+        except:
+            profiles_df = pd.DataFrame()
 
     except Exception as e:
         return jsonify({"error": f"Failed to fetch sender history: {str(e)}"}), 500
@@ -203,7 +248,8 @@ def ingest_transaction():
         "retroactive_update" : retro_result,
         "graph_info"         : {
             "num_nodes": result.get("num_nodes", 0),
-            "num_edges": result.get("num_edges", 0)
+            "num_edges": result.get("num_edges", 0),
+            "history_visible": len(history_df)
         },
         "db_inserted"        : db_inserted
     })
@@ -220,4 +266,4 @@ def health():
 
 if __name__ == '__main__':
     print("Starting AML Fraud API Backend...")
-    app.run(port=5000, debug=True)
+    app.run(port=5000, debug=False)

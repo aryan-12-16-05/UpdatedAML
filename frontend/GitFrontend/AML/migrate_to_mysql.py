@@ -50,7 +50,7 @@ def migrate_data():
     print(f"Looking for data in: {gitdata_dir}")
 
     # 1. Migrate Transactions
-    trans_file = find_file("frontend (1).csv", gitdata_dir) or find_file("frontend*.csv", gitdata_dir)
+    trans_file = find_file("test_transactions.csv", gitdata_dir) or find_file("frontend (1).csv", gitdata_dir) or find_file("frontend*.csv", gitdata_dir)
     if trans_file:
         print(f"Migrating transactions from {trans_file}...")
         try:
@@ -58,8 +58,32 @@ def migrate_data():
             # Standardize column names (make them lowercase, replace spaces with underscores)
             df_trans.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_trans.columns]
             
-            # Write to MySQL table
-            df_trans.to_sql("transactions", con=engine, if_exists="replace", index=False)
+            # Map column variations (e.g. Account -> from_account, Account.1 -> to_account)
+            col_rename = {}
+            if "account" in df_trans.columns and "from_account" not in df_trans.columns:
+                col_rename["account"] = "from_account"
+            if "account.1" in df_trans.columns and "to_account" not in df_trans.columns:
+                col_rename["account.1"] = "to_account"
+            elif "account_1" in df_trans.columns and "to_account" not in df_trans.columns:
+                col_rename["account_1"] = "to_account"
+            if col_rename:
+                df_trans.rename(columns=col_rename, inplace=True)
+
+            # Ensure GAT & Fanout columns exist for downstream queries
+            if "episode_no" in df_trans.columns and "fan_out_group" not in df_trans.columns:
+                df_trans["fan_out_group"] = df_trans["episode_no"].apply(
+                    lambda x: int(x) if pd.notnull(x) and str(x).strip() not in ('', '-1', '-1.0') else None
+                )
+            if "gat_risk_level" not in df_trans.columns and "is_laundering" in df_trans.columns:
+                df_trans["gat_risk_level"] = df_trans["is_laundering"].apply(lambda x: "HIGH" if x == 1 else "LOW")
+            if "behavior_signal" not in df_trans.columns and "is_laundering" in df_trans.columns:
+                df_trans["behavior_signal"] = df_trans["is_laundering"].apply(lambda x: "FAN-OUT" if x == 1 else "NORMAL")
+            if "gat_risk_probability" not in df_trans.columns and "is_laundering" in df_trans.columns:
+                df_trans["gat_risk_probability"] = df_trans["is_laundering"].apply(lambda x: 0.95 if x == 1 else 0.10)
+
+            # Write to MySQL table in chunks with progress
+            print(f"Writing {len(df_trans)} transaction rows to TiDB (chunksize=10000)...")
+            df_trans.to_sql("transactions", con=engine, if_exists="replace", index=False, chunksize=10000)
             print("Successfully migrated 'transactions' table.")
         except Exception as e:
             print(f"Failed to migrate transactions: {e}")
@@ -67,19 +91,42 @@ def migrate_data():
         print("Transactions CSV not found!")
 
     # 2. Migrate Customer Profiles
-    profiles_file = find_file("customer_profiles.csv", gitdata_dir) or find_file("*profile*.csv", gitdata_dir)
+    profiles_file = find_file("test_customer_profiles.csv", gitdata_dir) or find_file("customer_profiles.csv", gitdata_dir) or find_file("*profile*.csv", gitdata_dir)
     if profiles_file:
         print(f"Migrating customer profiles from {profiles_file}...")
         try:
             df_prof = pd.read_csv(profiles_file)
             df_prof.columns = [c.strip().lower().replace(" ", "_").replace("-", "_") for c in df_prof.columns]
             
-            df_prof.to_sql("customer_profiles", con=engine, if_exists="replace", index=False)
+            # Map column variations (e.g. account_id -> account_number)
+            prof_rename = {}
+            if "account_id" in df_prof.columns and "account_number" not in df_prof.columns:
+                prof_rename["account_id"] = "account_number"
+            if prof_rename:
+                df_prof.rename(columns=prof_rename, inplace=True)
+
+            print(f"Writing {len(df_prof)} profile rows to TiDB (chunksize=10000)...")
+            df_prof.to_sql("customer_profiles", con=engine, if_exists="replace", index=False, chunksize=10000)
             print("Successfully migrated 'customer_profiles' table.")
         except Exception as e:
             print(f"Failed to migrate customer profiles: {e}")
     else:
         print("Customer Profiles CSV not found!")
+
+    # 3. Create indices for fast lookup
+    print("Creating indexes on TiDB tables...")
+    try:
+        from sqlalchemy import text
+        with engine.connect() as conn:
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_tx_from_acc ON transactions (from_account(64));"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_tx_to_acc ON transactions (to_account(64));"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_tx_ts ON transactions (timestamp(32));"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_tx_fanout ON transactions (fan_out_group);"))
+            conn.execute(text("CREATE INDEX IF NOT EXISTS idx_cp_acc ON customer_profiles (account_number(64));"))
+            conn.commit()
+            print("Indexes successfully created.")
+    except Exception as e:
+        print(f"Index creation notice: {e}")
 
     print("Migration complete!")
 

@@ -77,6 +77,8 @@ def load_checkpoint():
     print("Heads: 4")
     print(f"Device: {device}")
     
+    return _model, _feature_engine
+    
 _db_engine = None
 
 def _get_node_features(account_id: str, target_ts: str, fe) -> np.ndarray:
@@ -172,7 +174,7 @@ def _engineer_edge_features(tx: dict, fe, history_df: pd.DataFrame = None) -> np
     same_bank = 1.0 if from_bank == to_bank else 0.0
     
     near_threshold = 1.0 if (9900 <= amt_paid_usd <= 10000) else 0.0
-    threshold_proximity = max(0.0, 10000.0 - amt_paid_usd)
+    threshold_proximity = max(0.0, 10000.0 - amt_paid_usd) / 10000.0
     
     pair_recency_hours = 24.0 * 30
     first_pair = 1.0
@@ -218,9 +220,24 @@ def _engineer_edge_features(tx: dict, fe, history_df: pd.DataFrame = None) -> np
         sender_zscore, float(pf_idx), float(pc_idx), float(rc_idx)
     ]
     
+    tx_id_val = str(tx.get("transaction_id", tx.get("Transaction ID", tx.get("tx_id", ""))))
+    is_audit = "LIVE_SIM" in tx_id_val
+    if is_audit and ("NORM_01" in tx_id_val or "LAUND_01" in tx_id_val):
+        print(f"\n[FORENSIC] Edge Feature Audit for {tx_id_val}")
+        print(f"Raw Features: {feats}")
+        print(f"Categorical - pf: {pf} -> {pf_idx}")
+        print(f"Categorical - pc: {pay_cur} -> {pc_idx}")
+        print(f"Categorical - rc: {recv_cur} -> {rc_idx}")
+
     arr = np.array(feats, dtype=np.float32).reshape(1, -1)
     if hasattr(fe, 'edge_scaler') and fe.edge_scaler is not None:
+        if is_audit and ("NORM_01" in tx_id_val or "LAUND_01" in tx_id_val):
+            print(f"Edge Scaler Mean: {fe.edge_scaler.mean_}")
+            print(f"Edge Scaler Scale: {fe.edge_scaler.scale_}")
         arr = fe.edge_scaler.transform(arr)
+        if is_audit and ("NORM_01" in tx_id_val or "LAUND_01" in tx_id_val):
+            print(f"Scaled Features: {arr[0]}")
+            
     return arr[0]
 
 def build_sender_graph(sender_account: str, history_df: pd.DataFrame,
@@ -303,6 +320,21 @@ def score_transaction(new_tx: dict, history_df: pd.DataFrame,
     data, sender_idx, receiver_idx, new_edge_feat = build_sender_graph(
         sender_account, strict_history, new_tx, profiles_df, fe
     )
+
+    tx_id_val = str(new_tx.get("transaction_id", new_tx.get("Transaction ID", new_tx.get("tx_id", ""))))
+    is_audit = "LIVE_SIM" in tx_id_val
+    if is_audit:
+        print(f"\n[FORENSIC] Graph Info for {tx_id_val}")
+        print(f"Graph Node Count: {data.x.shape[0]}")
+        print(f"Graph Edge Count: {data.edge_index.shape[1]}")
+        src_id = str(new_tx.get("From Account", new_tx.get("from_account", ""))).strip()
+        dst_id = str(new_tx.get("To Account", new_tx.get("to_account", ""))).strip()
+        from_c = "From Account" if "From Account" in history_df.columns else "from_account"
+        to_c = "To Account" if "To Account" in history_df.columns else "to_account"
+        src_hist = len(history_df[history_df[from_c].astype(str).str.strip() == src_id]) if (not history_df.empty and from_c in history_df.columns) else 0
+        dst_hist = len(history_df[history_df[to_c].astype(str).str.strip() == dst_id]) if (not history_df.empty and to_c in history_df.columns) else 0
+        print(f"Source node ({src_id}) history: {src_hist}")
+        print(f"Destination node ({dst_id}) history: {dst_hist}")
 
     with torch.no_grad():
         prob = model(data.x, data.edge_index, data.edge_attr, sender_idx, receiver_idx, new_edge_feat)
