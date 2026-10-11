@@ -196,6 +196,7 @@ class DatasetManager:
             "incoming_transactions": "Incoming_Transactions"
         }
         raw_df.rename(columns=col_mapping, inplace=True)
+        raw_df = raw_df.loc[:, ~raw_df.columns.duplicated()].copy()
 
         # Keep all fetched transactions (they are already filtered)
         self._df = raw_df.copy()
@@ -203,6 +204,8 @@ class DatasetManager:
         if self._df.empty:
             self._df = raw_df.copy()
 
+        self._df["Fan-out Group"] = pd.to_numeric(self._df["Fan-out Group"], errors="coerce")
+        self._df = self._df.dropna(subset=["Fan-out Group"])
         self._df["Fan-out Group"] = self._df["Fan-out Group"].astype(int)
 
         # Pre-group only top unique groups for instant performance
@@ -258,6 +261,7 @@ class DatasetManager:
             "pass_through_ratio": "Pass_Through_Ratio"
         }
         df_p.rename(columns=prof_col_mapping, inplace=True)
+        df_p = df_p.loc[:, ~df_p.columns.duplicated()].copy()
         
         acc_col = "Account_Number" if "Account_Number" in df_p.columns else df_p.columns[0]
         df_p[acc_col] = df_p[acc_col].astype(str).str.strip()
