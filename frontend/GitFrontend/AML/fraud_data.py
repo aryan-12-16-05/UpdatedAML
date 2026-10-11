@@ -352,7 +352,7 @@ class DatasetManager:
                     f"Historical outgoing transactions: {prev_out}",
                     f"Historical incoming transactions: {prev_in}",
                     f"GAT model probability: {gat_prob:.4f} ({gat_signal})",
-                    f"Payment format: {payment_format} · Currency: {currency}",
+                    f"Payment format: {payment_format}",
                 ]
             }
 
@@ -484,7 +484,7 @@ def get_transaction_by_id(tx_id_or_group_id):
                     f"Historical outgoing transactions: {sender_prof.get('Outgoing_Transactions', len(gdf))}",
                     f"Historical incoming transactions: {sender_prof.get('Incoming_Transactions', 0)}",
                     f"GAT model probability: {gat_prob:.4f} ({gat_signal})",
-                    f"Payment format: {str(first_row.get('Payment Format', 'Wire'))} · Currency: {currency}",
+                    f"Payment format: {str(first_row.get('Payment Format', 'Wire'))}",
                 ]
             }
     except Exception:

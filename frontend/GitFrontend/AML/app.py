@@ -980,8 +980,8 @@ elif page == "Metrics":
         st.markdown("Metrics evaluated on the massive 7,000,000 transaction training graph.")
         
         train_df = pd.DataFrame({
-            "Precision": ["0.9948"],
-            "Recall": ["0.9975"],
+            "Precision": ["0.9949"],
+            "Recall": ["0.9976"],
             "F1 Score": ["0.9962"],
             "Accuracy": ["0.9966"],
             "ROC-AUC": ["0.9999"],
@@ -991,17 +991,17 @@ elif page == "Metrics":
 
         st.markdown("---")
         st.markdown("#### Confusion Matrix")
-        st.plotly_chart(plot_confusion_matrix(3888208, 15918, 7539, 3088335), use_container_width=True)
+        st.plotly_chart(plot_confusion_matrix(3816314, 16198, 7602, 3159886), use_container_width=True)
 
     with tab_test:
         st.markdown("### 📊 Testing Set Performance")
         st.markdown("Metrics evaluated on the unseen 1,500,000 transaction testing graph.")
         
         test_df = pd.DataFrame({
-            "Precision": ["0.9988"],
-            "Recall": ["0.9984"],
-            "F1 Score": ["0.9986"],
-            "Accuracy": ["0.9978"],
+            "Precision": ["0.9938"],
+            "Recall": ["0.9965"],
+            "F1 Score": ["0.9951"],
+            "Accuracy": ["0.9955"],
             "ROC-AUC": ["0.9998"],
             "PR-AUC": ["0.9999"]
         })
@@ -1009,4 +1009,4 @@ elif page == "Metrics":
 
         st.markdown("---")
         st.markdown("#### Confusion Matrix")
-        st.plotly_chart(plot_confusion_matrix(275610, 1371, 1890, 1221129), use_container_width=True)
+        st.plotly_chart(plot_confusion_matrix(801011, 4319, 2431, 692239), use_container_width=True)

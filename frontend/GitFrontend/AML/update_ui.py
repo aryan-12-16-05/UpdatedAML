@@ -104,8 +104,8 @@ if start_idx != -1:
         st.markdown("### 📊 Training Set Performance")
         st.markdown("Metrics evaluated on the massive 7,000,000 transaction training graph.")
         m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Precision", "0.9948")
-        m2.metric("Recall", "0.9975")
+        m1.metric("Precision", "0.9949")
+        m2.metric("Recall", "0.9976")
         m3.metric("F1 Score", "0.9962")
         m4.metric("Accuracy", "0.9966")
         m5.metric("ROC-AUC", "0.9999")
@@ -113,22 +113,22 @@ if start_idx != -1:
 
         st.markdown("---")
         st.markdown("#### Confusion Matrix")
-        st.plotly_chart(plot_confusion_matrix(3888208, 15918, 7539, 3088335), use_container_width=True)
+        st.plotly_chart(plot_confusion_matrix(3816314, 16198, 7602, 3159886), use_container_width=True)
 
     with tab_test:
         st.markdown("### 📊 Testing Set Performance")
         st.markdown("Metrics evaluated on the unseen 1,500,000 transaction testing graph.")
         m1, m2, m3, m4, m5, m6 = st.columns(6)
-        m1.metric("Precision", "0.9988")
-        m2.metric("Recall", "0.9984")
-        m3.metric("F1 Score", "0.9986")
-        m4.metric("Accuracy", "0.9978")
+        m1.metric("Precision", "0.9938")
+        m2.metric("Recall", "0.9965")
+        m3.metric("F1 Score", "0.9951")
+        m4.metric("Accuracy", "0.9955")
         m5.metric("ROC-AUC", "0.9998")
         m6.metric("PR-AUC", "0.9999")
 
         st.markdown("---")
         st.markdown("#### Confusion Matrix")
-        st.plotly_chart(plot_confusion_matrix(275610, 1371, 1890, 1221129), use_container_width=True)
+        st.plotly_chart(plot_confusion_matrix(801011, 4319, 2431, 692239), use_container_width=True)
 """
     new_content.append(metrics_ui)
     
