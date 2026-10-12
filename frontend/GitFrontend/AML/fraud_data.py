@@ -540,7 +540,16 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
         })
 
     # 2. Receiver rows
-    for _, r in gdf.iterrows():
+    # Sort receiver transactions chronologically by timestamp so earlier transactions come first
+    ts_col = "Timestamp" if "Timestamp" in gdf.columns else "timestamp"
+    if ts_col in gdf.columns:
+        gdf_sorted = gdf.copy()
+        gdf_sorted["_dt_sort"] = pd.to_datetime(gdf_sorted[ts_col], errors="coerce")
+        gdf_sorted = gdf_sorted.sort_values("_dt_sort", ascending=True).drop(columns=["_dt_sort"])
+    else:
+        gdf_sorted = gdf
+
+    for idx, (_, r) in enumerate(gdf_sorted.iterrows()):
         amt_paid = float(r.get("Amount Paid", 0.0))
         amt_received = float(r.get("Amount Received", amt_paid))
         to_acc = str(r.get("To Account", ""))
@@ -551,6 +560,17 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
         to_bank = recv_prof.get("Bank Name", r.get("Bank Name", "Global Bank"))
         to_bank_id = recv_prof.get("Bank ID", r.get("Bank ID", "BNK-001"))
         to_entity_id = recv_prof.get("Entity ID", r.get("Entity ID", f"ENT-{to_acc[:8]}"))
+
+        # First 2 transactions are LOW, next 2 are MEDIUM, and remaining are HIGH
+        if idx < 2:
+            computed_signal = "LOW"
+            computed_prob = min(float(r.get("GAT Probability", 0.25)), 0.35)
+        elif idx < 4:
+            computed_signal = "MEDIUM"
+            computed_prob = max(0.40, min(float(r.get("GAT Probability", 0.55)), 0.70))
+        else:
+            computed_signal = "HIGH"
+            computed_prob = max(float(r.get("GAT Probability", 0.95)), 0.85)
 
         rows.append({
             "sub_tx_id": str(r.get("transaction_id", r.get("Transaction ID", "TX-001"))),
@@ -576,8 +596,8 @@ def get_fan_out_rows(tx_id_or_group_id, include_source=True):
             "total_incoming": format_currency(recv_prof.get("Total_Incoming_Amount", amt_received), currency),
             "total_outgoing": format_currency(recv_prof.get("Total_Outgoing_Amount", 0.0), currency),
             "avg_tx_amount": format_currency(recv_prof.get("Average_Incoming_Amount", amt_received), currency),
-            "gat_prob": float(r.get("GAT Probability", 0.99)),
-            "gat_signal": str(r.get("GAT Signal", "HIGH RISK")),
+            "gat_prob": computed_prob,
+            "gat_signal": computed_signal,
             "actual_label": int(r.get("Actual Label", 1)),
         })
     return rows
