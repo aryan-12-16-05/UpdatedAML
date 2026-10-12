@@ -489,6 +489,8 @@ if page in ["Dashboard", "Decisions"]:
 
         # ── Graph Network Button ──
         if st.button("🕸️  Tap to View as Graph Network", key="graph_btn", use_container_width=False):
+            st.session_state.active_page = "Alerts / Graph Network"
+            st.session_state["_force_page_switch"] = True
             st.session_state.goto_graph = True
             st.rerun()
 
