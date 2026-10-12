@@ -252,34 +252,30 @@ with st.sidebar:
     </div>
     """))
 
-    # Determine default page index (respects programmatic page switches)
+    # Supported navigation pages
     _all_pages = ["Dashboard", "Alerts / Graph Network", "Decisions", "Metrics"]
-    if st.session_state.goto_graph:
-        _default_page_idx = 1
-    elif st.session_state.active_page in _all_pages:
-        _default_page_idx = _all_pages.index(st.session_state.active_page)
-    else:
-        _default_page_idx = 0
-    
-    # Reset widget state to force programmatic page switch
     _radio_key = "sidebar_nav_radio"
-    if st.session_state.get("_force_page_switch"):
-        # Clear the widget state so index is respected
-        if _radio_key in st.session_state:
-            del st.session_state[_radio_key]
+
+    # Handle programmatic navigation requests
+    if st.session_state.get("_force_page_switch") or st.session_state.get("goto_graph"):
+        target_page = "Alerts / Graph Network" if st.session_state.get("goto_graph") else st.session_state.get("active_page", "Dashboard")
+        st.session_state[_radio_key] = target_page
+        st.session_state.active_page = target_page
         st.session_state["_force_page_switch"] = False
-    
+        st.session_state.goto_graph = False
+
+    # Ensure widget key is initialized
+    if _radio_key not in st.session_state:
+        st.session_state[_radio_key] = "Dashboard"
+
     page = st.radio(
         "Navigation",
         _all_pages,
-        index=_default_page_idx,
         label_visibility="collapsed",
         key=_radio_key
     )
-    # Sync active_page with what user manually clicked
+    # Sync active_page with what user clicked in the sidebar
     st.session_state.active_page = page
-    if st.session_state.goto_graph and page == "Alerts / Graph Network":
-        st.session_state.goto_graph = False
 
     st.html("<br><br><hr><div style='text-align:center;color:#94a3b8;font-size:11px;'>© AML Fraud Investigation System</div>")
 
