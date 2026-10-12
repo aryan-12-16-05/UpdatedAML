@@ -8,3 +8,6 @@ seaborn>=0.12.0
 sqlalchemy
 pymysql
 mysql-connector-python
+scikit-learn
+torch
+torch_geometric

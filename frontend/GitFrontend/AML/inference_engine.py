@@ -13,7 +13,13 @@ import warnings
 import numpy as np
 import pandas as pd
 from datetime import datetime
-import torch
+
+try:
+    import torch
+    HAS_TORCH = True
+except ImportError:
+    torch = None
+    HAS_TORCH = False
 
 _AML_DIR = os.path.dirname(os.path.abspath(__file__))
 _MODELS_DIR = os.path.join(_AML_DIR, "models")
@@ -36,7 +42,10 @@ _device = None
 def _get_device():
     global _device
     if _device is None:
-        _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        if HAS_TORCH and torch is not None:
+            _device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        else:
+            _device = "cpu"
     return _device
 
 def load_checkpoint():
@@ -47,6 +56,9 @@ def load_checkpoint():
 
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(f"Model file not found: {MODEL_PATH}")
+
+    if not HAS_TORCH or torch is None:
+        raise ImportError("PyTorch ('torch') is not installed in the environment.")
 
     device = _get_device()
     print(f"[InferenceEngine] Loading Stage-1 GAT checkpoint from {MODEL_PATH} on {device}")
