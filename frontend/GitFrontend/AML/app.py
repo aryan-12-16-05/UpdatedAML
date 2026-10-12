@@ -363,6 +363,16 @@ if page in ["Dashboard", "Decisions"]:
     </div>
     """))
 
+    # ── Fetch decisions once (shared across all panels) ──────────────────
+    import decisions_db as _ddb
+    mysql_decisions = _ddb.get_analyst_decisions()
+    # Merge DB + session-state decisions (session-state is instant; fixes DB-latency double-submit bug)
+    _all_decided_keys = set(mysql_decisions.keys()) | set(st.session_state.human_decision_submitted.keys())
+    # Pre-seed session state from DB for any decided keys not yet in session
+    for _k, _v in mysql_decisions.items():
+        if _k not in st.session_state.human_decision_submitted:
+            st.session_state.human_decision_submitted[_k] = _v
+
     # ── 3-Column Layout ─────────────────────────────────────────────────
     col_left, col_center, col_right = st.columns([1.0, 1.8, 1.2])
 
@@ -376,22 +386,21 @@ if page in ["Dashboard", "Decisions"]:
             st.html('<div class="section-label">✅ Evaluated Decisions</div>')
 
         all_txs_raw = fraud_data.get_all_flagged_senders()
-        import decisions_db
-        mysql_decisions = decisions_db.get_analyst_decisions()
+        # Use hoisted mysql_decisions / _all_decided_keys (fetched once above columns)
         all_txs = []
         for tx in all_txs_raw:
             tx_key = tx.get("tx_id", f"GROUP-{tx.get('group_id', 1)}")
-            if page == "Dashboard" and tx_key not in mysql_decisions:
+            if page == "Dashboard" and tx_key not in _all_decided_keys:
                 all_txs.append(tx)
-            elif page == "Decisions" and tx_key in mysql_decisions:
+            elif page == "Decisions" and tx_key in _all_decided_keys:
                 all_txs.append(tx)
 
         # Guard: if on Dashboard and selected group is already decided, auto-select first undecided
-        if page == "Dashboard" and st.session_state.selected_tx_id in mysql_decisions:
+        if page == "Dashboard" and st.session_state.selected_tx_id in _all_decided_keys:
             undecided = [tx.get("tx_id", f"GROUP-{tx.get('group_id',1)}") for tx in all_txs]
             if undecided:
                 st.session_state.selected_tx_id = undecided[0]
-            # else all decided — switch to Decisions tab
+            # else all decided — nothing to show
         
         risk_filter = st.selectbox("Filter by Risk", ["All", "High", "Medium", "Low"], label_visibility="collapsed")
         
@@ -543,11 +552,7 @@ if page in ["Dashboard", "Decisions"]:
             import decisions_db
             tx_key = curr_tx.get("tx_id", f"GROUP-{gid}")
 
-            # Pre-seed session state from persistent storage if it exists
-            mysql_decisions = decisions_db.get_analyst_decisions()
-            if tx_key not in st.session_state.human_decision_submitted and tx_key in mysql_decisions:
-                st.session_state.human_decision_submitted[tx_key] = mysql_decisions[tx_key]
-
+            # session_state is already pre-seeded from DB at the top of this page block
             already_submitted = st.session_state.human_decision_submitted.get(tx_key)
 
             st.html(textwrap.dedent(f"""
