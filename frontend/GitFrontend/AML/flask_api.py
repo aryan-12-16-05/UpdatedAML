@@ -187,25 +187,56 @@ def ingest_transaction():
     except Exception as e:
         return jsonify({"error": f"Failed to fetch sender history: {str(e)}"}), 500
 
-    # ── 3. Run GAT inference ──────────────────────────────────────────────────
-    try:
-        import inference_engine
-        result = inference_engine.score_transaction(data, history_df, profiles_df)
-    except Exception as e:
-        return jsonify({"error": f"Inference failed: {str(e)}"}), 500
+    # ── 3. Rule-Based Override Check & Model Inference ────────────────────────
+    account_status = decisions_db.get_account_status(sender_account)
+    override_applied = None
 
-    prob       = result["probability"]
-    is_fraud   = result["is_fraud"]
-    gat_signal = result["gat_signal"]
+    if account_status == "SAFE":
+        # Rule 1: Sender is SAFE -> Bypass model, mark legitimate, no fanout group
+        prob = 0.05
+        is_fraud = False
+        gat_signal = "LOW"
+        fan_out_group = None
+        override_applied = "SAFE (Rule-based override, GAT model bypassed)"
+        result = {"probability": prob, "is_fraud": is_fraud, "gat_signal": gat_signal, "num_nodes": 0, "num_edges": 0}
 
-    # ── 4. Determine fan-out group ────────────────────────────────────────────
-    fan_out_group = None
-    if not history_df.empty:
-        grp_col = "Fan-out Group" if "Fan-out Group" in history_df.columns else "fan_out_group"
-        if grp_col in history_df.columns:
-            existing_grp = history_df[grp_col].dropna()
-            if not existing_grp.empty:
-                fan_out_group = int(existing_grp.iloc[0])
+    elif account_status == "FRAUD":
+        # Rule 2: Sender is FRAUD -> Bypass model, mark as fraud directly
+        prob = 0.99
+        is_fraud = True
+        gat_signal = "HIGH"
+        override_applied = "FRAUD (Rule-based override, GAT model bypassed)"
+        result = {"probability": prob, "is_fraud": is_fraud, "gat_signal": gat_signal, "num_nodes": 0, "num_edges": 0}
+
+        # Resolve or allocate fan-out group
+        fan_out_group = None
+        if not history_df.empty:
+            grp_col = "Fan-out Group" if "Fan-out Group" in history_df.columns else "fan_out_group"
+            if grp_col in history_df.columns:
+                existing_grp = history_df[grp_col].dropna()
+                if not existing_grp.empty:
+                    fan_out_group = int(existing_grp.iloc[0])
+
+    else:
+        # Rule 3: Sender is NULL -> Run standard GAT inference
+        try:
+            import inference_engine
+            result = inference_engine.score_transaction(data, history_df, profiles_df)
+        except Exception as e:
+            return jsonify({"error": f"Inference failed: {str(e)}"}), 500
+
+        prob       = result["probability"]
+        is_fraud   = result["is_fraud"]
+        gat_signal = result["gat_signal"]
+
+        # Determine fan-out group
+        fan_out_group = None
+        if not history_df.empty:
+            grp_col = "Fan-out Group" if "Fan-out Group" in history_df.columns else "fan_out_group"
+            if grp_col in history_df.columns:
+                existing_grp = history_df[grp_col].dropna()
+                if not existing_grp.empty:
+                    fan_out_group = int(existing_grp.iloc[0])
 
     # ── 5. Insert new transaction into database ───────────────────────────────
     import fanout_updater

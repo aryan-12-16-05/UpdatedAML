@@ -265,7 +265,7 @@ with st.sidebar:
 
 # ─── Top Header ───────────────────────────────────────────────────────────
 current_time = datetime.now().strftime("%I:%M:%S %p")
-col_h1, col_h2 = st.columns([3, 1])
+col_h1, col_h2 = st.columns([2.7, 1.3])
 with col_h1:
     st.html(textwrap.dedent("""
     <div>
@@ -275,10 +275,29 @@ with col_h1:
     """))
 with col_h2:
     st.html(textwrap.dedent(f"""
-    <div style="text-align:right;margin-top:10px;">
+    <div style="text-align:right;margin-bottom:6px;">
         <span class="header-timestamp">🕒 Last Updated: {current_time}</span>
     </div>
     """))
+    if st.button("▶️ Run Simulation", key="btn_run_sim", type="primary", use_container_width=True, help="Simulate transactions from GitData/simulate_trans.csv using rule-based overrides"):
+        import simulation_engine
+        with st.spinner("Processing simulate_trans.csv..."):
+            sim_res = simulation_engine.run_simulation()
+            st.session_state["simulation_last_result"] = sim_res
+        st.rerun()
+
+if "simulation_last_result" in st.session_state and st.session_state["simulation_last_result"]:
+    sim_res = st.session_state["simulation_last_result"]
+    if sim_res.get("status") == "empty":
+        st.warning(f"⚠️ {sim_res.get('message')}")
+    elif sim_res.get("status") == "error":
+        st.error(f"❌ {sim_res.get('message')}")
+    elif sim_res.get("status") == "success":
+        c = sim_res.get("counts", {})
+        st.success(
+            f"✅ **Simulation Completed:** Processed {sim_res.get('total', 0)} transaction(s) from `simulate_trans.csv`. "
+            f"(SAFE Bypassed: {c.get('SAFE', 0)} | FRAUD Injected: {c.get('FRAUD', 0)} | GAT Inferred: {c.get('NULL', 0)})"
+        )
 
 st.write("")
 
@@ -557,9 +576,8 @@ if page in ["Dashboard", "Decisions"]:
                         "timestamp": timestamp
                     }
                     
-                    # Persist decision to the database backend
-                    decisions_db.record_analyst_decision(tx_key, decision, notes, timestamp)
-                    st.rerun()
+                    # Persist decision to the database backend with sender account association
+                    decisions_db.record_analyst_decision(tx_key, decision, notes, timestamp, account=sender_acc)
                     
                     # If approved, navigate to the next remaining high-risk group
                     if "Approve" in decision:

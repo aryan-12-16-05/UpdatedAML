@@ -144,16 +144,18 @@ def _assign_new_group(conn) -> int:
 
 
 def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
-                            is_fraud: bool, fan_out_group: int) -> bool:
+                            is_fraud: bool, fan_out_group: int,
+                            actual_label: int = None) -> bool:
     """
     Insert a newly ingested transaction into the MySQL `transactions` table.
 
     Args:
         tx_dict      : raw transaction fields (see API schema)
         gat_prob     : model-predicted AML probability
-        gat_signal   : "HIGH RISK" | "LEGITIMATE"
+        gat_signal   : "HIGH RISK" | "LEGITIMATE" | "LOW"
         is_fraud     : True if detected as money laundering
-        fan_out_group: assigned fan-out group ID
+        fan_out_group: assigned fan-out group ID (or None if legitimate)
+        actual_label : optional 0 or 1 ground-truth label
 
     Returns:
         True on success, False on failure
@@ -161,7 +163,8 @@ def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
     from sqlalchemy import text
 
     engine = _get_engine()
-    actual_label    = None  # Unknown ground-truth for live transaction
+    if actual_label is None:
+        actual_label = 1 if is_fraud else 0
     behavior_signal = "FAN-OUT" if is_fraud else "LEGITIMATE"
 
     try:
