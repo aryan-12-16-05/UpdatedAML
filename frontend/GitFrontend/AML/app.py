@@ -234,6 +234,8 @@ if "human_decision_submitted" not in st.session_state:
     st.session_state.human_decision_submitted = {}
 if "goto_graph" not in st.session_state:
     st.session_state.goto_graph = False
+if "active_page" not in st.session_state:
+    st.session_state.active_page = "Dashboard"
 
 # ─── Sidebar ─────────────────────────────────────────────────────────────
 with st.sidebar:
@@ -250,14 +252,32 @@ with st.sidebar:
     </div>
     """))
 
-    # If goto_graph flag is set, pre-select the graph page
-    default_page_idx = 1 if st.session_state.goto_graph else 0
+    # Determine default page index (respects programmatic page switches)
+    _all_pages = ["Dashboard", "Alerts / Graph Network", "Decisions", "Metrics"]
+    if st.session_state.goto_graph:
+        _default_page_idx = 1
+    elif st.session_state.active_page in _all_pages:
+        _default_page_idx = _all_pages.index(st.session_state.active_page)
+    else:
+        _default_page_idx = 0
+    
+    # Reset widget state to force programmatic page switch
+    _radio_key = "sidebar_nav_radio"
+    if st.session_state.get("_force_page_switch"):
+        # Clear the widget state so index is respected
+        if _radio_key in st.session_state:
+            del st.session_state[_radio_key]
+        st.session_state["_force_page_switch"] = False
+    
     page = st.radio(
         "Navigation",
-        ["Dashboard", "Alerts / Graph Network", "Decisions", "Metrics"],
-        index=default_page_idx,
-        label_visibility="collapsed"
+        _all_pages,
+        index=_default_page_idx,
+        label_visibility="collapsed",
+        key=_radio_key
     )
+    # Sync active_page with what user manually clicked
+    st.session_state.active_page = page
     if st.session_state.goto_graph and page == "Alerts / Graph Network":
         st.session_state.goto_graph = False
 
@@ -365,6 +385,13 @@ if page in ["Dashboard", "Decisions"]:
                 all_txs.append(tx)
             elif page == "Decisions" and tx_key in mysql_decisions:
                 all_txs.append(tx)
+
+        # Guard: if on Dashboard and selected group is already decided, auto-select first undecided
+        if page == "Dashboard" and st.session_state.selected_tx_id in mysql_decisions:
+            undecided = [tx.get("tx_id", f"GROUP-{tx.get('group_id',1)}") for tx in all_txs]
+            if undecided:
+                st.session_state.selected_tx_id = undecided[0]
+            # else all decided — switch to Decisions tab
         
         risk_filter = st.selectbox("Filter by Risk", ["All", "High", "Medium", "Low"], label_visibility="collapsed")
         
@@ -538,11 +565,17 @@ if page in ["Dashboard", "Decisions"]:
                 decision_val = already_submitted["decision"]
                 st.success(f"**Decision Recorded:** {decision_val}")
                 st.info(f"**Authorised Bank Auditor Notes:** {already_submitted['notes'] or '(none)'}")
-                if st.button("Revise Decision", key=f"revise_{tx_key}"):
-                    if tx_key in st.session_state.human_decision_submitted:
-                        del st.session_state.human_decision_submitted[tx_key]
-                    decisions_db.remove_analyst_decision(tx_key)
-                    st.rerun()
+                if page == "Decisions":
+                    if st.button("🔄 Revise Decision", key=f"revise_{tx_key}"):
+                        if tx_key in st.session_state.human_decision_submitted:
+                            del st.session_state.human_decision_submitted[tx_key]
+                        decisions_db.remove_analyst_decision(tx_key)
+                        # Return this group to Dashboard for re-review
+                        st.session_state.selected_tx_id = tx_key
+                        st.session_state.active_page = "Dashboard"
+                        st.session_state.selected_sub_tx = None
+                        st.session_state["_force_page_switch"] = True
+                        st.rerun()
             else:
                 dec_col1, dec_col2 = st.columns([1, 1])
                 with dec_col1:
@@ -579,18 +612,22 @@ if page in ["Dashboard", "Decisions"]:
                     # Persist decision to the database backend with sender account association
                     decisions_db.record_analyst_decision(tx_key, decision, notes, timestamp, account=sender_acc)
                     
-                    # If approved, navigate to the next remaining high-risk group
-                    if "Approve" in decision:
-                        still_high = [
-                            s for s in fraud_data.get_all_flagged_senders()
-                            if s["risk"] == "High" and s["tx_id"] != tx_key
-                        ]
-                        if still_high:
-                            st.session_state.selected_tx_id = still_high[0]["tx_id"]
-                        else:
-                            st.session_state.selected_tx_id = "GROUP-1"
-                        st.session_state.selected_sub_tx = None
-                    
+                    # After ANY decision → move to Dashboard and select the next undecided group
+                    # so the just-decided group disappears immediately from the dashboard list
+                    _fresh_decisions = decisions_db.get_analyst_decisions()
+                    _remaining = [
+                        s for s in fraud_data.get_all_flagged_senders()
+                        if s.get("tx_id", f"GROUP-{s.get('group_id',1)}") not in _fresh_decisions
+                    ]
+                    if _remaining:
+                        st.session_state.selected_tx_id = _remaining[0]["tx_id"]
+                        st.session_state.active_page = "Dashboard"
+                    else:
+                        # All groups decided — switch to Decisions tab
+                        st.session_state.active_page = "Decisions"
+                        st.session_state.selected_tx_id = tx_key
+                    st.session_state.selected_sub_tx = None
+                    st.session_state["_force_page_switch"] = True
                     st.rerun()
 
         # ── AI Advisory (COMPLETELY AT BOTTOM) ──
