@@ -318,6 +318,11 @@ if "simulation_last_result" in st.session_state and st.session_state["simulation
             f"✅ **Simulation Completed:** Processed {sim_res.get('total', 0)} transaction(s) from `simulate_trans.csv`. "
             f"(SAFE Bypassed: {c.get('SAFE', 0)} | FRAUD Injected: {c.get('FRAUD', 0)} | GAT Inferred: {c.get('NULL', 0)})"
         )
+        sim_details = sim_res.get("results", [])
+        if sim_details:
+            with st.expander("📋 View Simulated Transactions Details", expanded=False):
+                sim_display_df = pd.DataFrame(sim_details)
+                st.dataframe(sim_display_df, use_container_width=True, hide_index=True)
 
 st.write("")
 

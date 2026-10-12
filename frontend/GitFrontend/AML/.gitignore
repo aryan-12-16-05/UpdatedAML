@@ -8,7 +8,8 @@ __pycache__/
 *.dll
 *.pyd
 *.so
-# Keep model weights local only - too large for GitHub
+# Keep other model weights local only, allow GAT_model.pt (24MB within GitHub 100MB limit)
 models/*.pt
+!models/GAT_model.pt
 models/*.pkl
 models/*.pth

@@ -93,13 +93,13 @@ def retroactively_label_sender(sender_account: str, detected_probability: float,
                 text("""
                     UPDATE transactions
                     SET
-                        actual_label         = 1,
+                        is_laundering        = 1,
                         gat_risk_level       = 'HIGH',
                         gat_risk_probability = :prob,
                         behavior_signal      = 'FAN-OUT',
                         fan_out_group        = :grp
                     WHERE from_account = :acc
-                      AND (actual_label != 1 OR actual_label IS NULL)
+                      AND (is_laundering != 1 OR is_laundering IS NULL)
                 """),
                 {
                     "prob": round(detected_probability, 6),
@@ -112,7 +112,7 @@ def retroactively_label_sender(sender_account: str, detected_probability: float,
 
         print(
             f"[FanOutUpdater] Retroactively labeled {updated_rows} transactions "
-            f"from sender {sender} → group {fan_out_group} (prob={detected_probability:.4f})"
+            f"from sender {sender} -> group {fan_out_group} (prob={detected_probability:.4f})"
         )
 
         # ── 3. Invalidate the in-memory DatasetManager so dashboard refreshes ─
@@ -184,7 +184,7 @@ def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
                         payment_format, timestamp,
                         from_bank, to_bank,
                         fan_out_group,
-                        actual_label, gat_risk_level, gat_risk_probability,
+                        is_laundering, gat_risk_level, gat_risk_probability,
                         behavior_signal
                     ) VALUES (
                         :txid, :from_acc, :to_acc,
@@ -199,7 +199,7 @@ def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
                     ON DUPLICATE KEY UPDATE
                         gat_risk_level       = VALUES(gat_risk_level),
                         gat_risk_probability = VALUES(gat_risk_probability),
-                        actual_label         = IF(actual_label IS NULL, VALUES(actual_label), actual_label)
+                        is_laundering        = IF(is_laundering IS NULL, VALUES(is_laundering), is_laundering)
                 """),
                 {
                     "txid"    : str(tx_dict.get("Transaction ID",   tx_dict.get("transaction_id",   "LIVE-" + datetime.utcnow().strftime("%f")))),
@@ -222,7 +222,7 @@ def insert_new_transaction(tx_dict: dict, gat_prob: float, gat_signal: str,
             )
             conn.commit()
 
-        print(f"[FanOutUpdater] Inserted new transaction → group {fan_out_group}, label={actual_label}")
+        print(f"[FanOutUpdater] Inserted new transaction -> group {fan_out_group}, label={actual_label}")
         return True
 
     except Exception as e:
