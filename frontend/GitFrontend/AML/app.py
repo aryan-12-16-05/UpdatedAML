@@ -594,38 +594,31 @@ if page in ["Dashboard", "Decisions"]:
                         st.session_state["_force_page_switch"] = True
                         st.rerun()
             else:
-                with st.form(key=f"form_decision_{tx_key}"):
-                    dec_col1, dec_col2 = st.columns([1, 1])
-                    with dec_col1:
-                        decision = st.radio(
-                            "**Authorised Bank Auditor Decision**",
-                            ["✅ Approve Transaction", "🚫 Block Transaction", "📤 Escalate to Senior Investigator"],
-                            key=f"decision_{tx_key}",
-                            index=2
-                        )
-                    with dec_col2:
-                        notes = st.text_area(
-                            "**Authorised Bank Auditor Notes**",
-                            placeholder="Add reasoning, observations, or escalation notes...",
-                            key=f"notes_{tx_key}",
-                            height=180
-                        )
-
-                    st.html("""
-                    <div class="human-decision-disclaimer">
-                        ⚠️ <b>Disclaimer:</b> By submitting, you confirm this decision is made by an
-                        AUTHORISED BANK AUDITOR. The GAT AML model provided supporting analysis only.
-                        This action will be logged and audited.
-                    </div>
-                    """)
-
-                    submitted = st.form_submit_button(
-                        f"📋 Submit Decision for Group {gid}",
-                        type="primary",
-                        use_container_width=True
+                dec_col1, dec_col2 = st.columns([1, 1])
+                with dec_col1:
+                    decision = st.radio(
+                        "**Authorised Bank Auditor Decision**",
+                        ["✅ Approve Transaction", "🚫 Block Transaction", "📤 Escalate to Senior Investigator"],
+                        key=f"decision_{tx_key}",
+                        index=2
+                    )
+                with dec_col2:
+                    notes = st.text_area(
+                        "**Authorised Bank Auditor Notes**",
+                        placeholder="Add reasoning, observations, or escalation notes...",
+                        key=f"notes_{tx_key}",
+                        height=180
                     )
 
-                if submitted:
+                st.html("""
+                <div class="human-decision-disclaimer">
+                    ⚠️ <b>Disclaimer:</b> By submitting, you confirm this decision is made by an
+                    AUTHORISED BANK AUDITOR. The GAT AML model provided supporting analysis only.
+                    This action will be logged and audited.
+                </div>
+                """)
+
+                if st.button(f"📋 Submit Decision for Group {gid}", key=f"submit_{tx_key}", type="primary", use_container_width=True):
                     timestamp = datetime.now().strftime("%d %b %Y, %I:%M %p")
                     st.session_state.human_decision_submitted[tx_key] = {
                         "decision": decision,
