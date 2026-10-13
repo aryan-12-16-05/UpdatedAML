@@ -88,8 +88,9 @@ def remove_analyst_decision(tx_id):
     try:
         conn = _get_db_connection()
         cursor = conn.cursor()
-        sql = "DELETE FROM analyst_decisions WHERE tx_id = %s"
-        cursor.execute(sql, (str(tx_id),))
+        alt_id = str(tx_id).replace("GROUP-", "") if "GROUP-" in str(tx_id) else f"GROUP-{tx_id}"
+        sql = "DELETE FROM analyst_decisions WHERE tx_id = %s OR tx_id = %s"
+        cursor.execute(sql, (str(tx_id), alt_id))
         conn.commit()
         cursor.close()
         conn.close()

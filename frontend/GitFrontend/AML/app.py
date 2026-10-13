@@ -289,20 +289,23 @@ with col_h1:
         <div class="header-subtitle">Graph Attention Network (GAT) AML Monitoring</div>
     </div>
     """))
+SHOW_SIMULATION_UI = False  # Set to True when simulation controls are needed
+
 with col_h2:
     st.html(textwrap.dedent(f"""
     <div style="text-align:right;margin-bottom:6px;">
         <span class="header-timestamp">🕒 Last Updated: {current_time}</span>
     </div>
     """))
-    if st.button("▶️ Run Simulation", key="btn_run_sim", type="primary", use_container_width=True, help="Simulate transactions from GitData/simulate_trans.csv using rule-based overrides"):
-        import simulation_engine
-        with st.spinner("Processing simulate_trans.csv..."):
-            sim_res = simulation_engine.run_simulation()
-            st.session_state["simulation_last_result"] = sim_res
-        st.rerun()
+    if SHOW_SIMULATION_UI:
+        if st.button("▶️ Run Simulation", key="btn_run_sim", type="primary", use_container_width=True, help="Simulate transactions from GitData/simulate_trans.csv using rule-based overrides"):
+            import simulation_engine
+            with st.spinner("Processing simulate_trans.csv..."):
+                sim_res = simulation_engine.run_simulation()
+                st.session_state["simulation_last_result"] = sim_res
+            st.rerun()
 
-if "simulation_last_result" in st.session_state and st.session_state["simulation_last_result"]:
+if SHOW_SIMULATION_UI and "simulation_last_result" in st.session_state and st.session_state["simulation_last_result"]:
     sim_res = st.session_state["simulation_last_result"]
     if sim_res.get("status") == "empty":
         st.warning(f"⚠️ {sim_res.get('message')}")
@@ -401,7 +404,12 @@ if page in ["Dashboard", "Decisions"]:
             undecided = [tx.get("tx_id", f"GROUP-{tx.get('group_id',1)}") for tx in all_txs]
             if undecided:
                 st.session_state.selected_tx_id = undecided[0]
-            # else all decided — nothing to show
+
+        # Guard: if on Decisions and selected group is NOT decided, auto-select first decided
+        if page == "Decisions" and st.session_state.selected_tx_id not in _all_decided_keys:
+            decided = [tx.get("tx_id", f"GROUP-{tx.get('group_id',1)}") for tx in all_txs]
+            if decided:
+                st.session_state.selected_tx_id = decided[0]
         
         risk_filter = st.selectbox("Filter by Risk", ["All", "High", "Medium", "Low"], label_visibility="collapsed")
         
@@ -578,6 +586,7 @@ if page in ["Dashboard", "Decisions"]:
                         if tx_key in st.session_state.human_decision_submitted:
                             del st.session_state.human_decision_submitted[tx_key]
                         decisions_db.remove_analyst_decision(tx_key)
+                        fraud_data.remove_analyst_decision(tx_key)
                         # Return this group to Dashboard for re-review
                         st.session_state.selected_tx_id = tx_key
                         st.session_state.active_page = "Dashboard"
@@ -585,47 +594,56 @@ if page in ["Dashboard", "Decisions"]:
                         st.session_state["_force_page_switch"] = True
                         st.rerun()
             else:
-                dec_col1, dec_col2 = st.columns([1, 1])
-                with dec_col1:
-                    decision = st.radio(
-                        "**Authorised Bank Auditor Decision**",
-                        ["✅ Approve Transaction", "🚫 Block Transaction", "📤 Escalate to Senior Investigator"],
-                        key=f"decision_{tx_key}",
-                        index=2
-                    )
-                with dec_col2:
-                    notes = st.text_area(
-                        "**Authorised Bank Auditor Notes**",
-                        placeholder="Add reasoning, observations, or escalation notes...",
-                        key=f"notes_{tx_key}",
-                        height=180
+                with st.form(key=f"form_decision_{tx_key}"):
+                    dec_col1, dec_col2 = st.columns([1, 1])
+                    with dec_col1:
+                        decision = st.radio(
+                            "**Authorised Bank Auditor Decision**",
+                            ["✅ Approve Transaction", "🚫 Block Transaction", "📤 Escalate to Senior Investigator"],
+                            key=f"decision_{tx_key}",
+                            index=2
+                        )
+                    with dec_col2:
+                        notes = st.text_area(
+                            "**Authorised Bank Auditor Notes**",
+                            placeholder="Add reasoning, observations, or escalation notes...",
+                            key=f"notes_{tx_key}",
+                            height=180
+                        )
+
+                    st.html("""
+                    <div class="human-decision-disclaimer">
+                        ⚠️ <b>Disclaimer:</b> By submitting, you confirm this decision is made by an
+                        AUTHORISED BANK AUDITOR. The GAT AML model provided supporting analysis only.
+                        This action will be logged and audited.
+                    </div>
+                    """)
+
+                    submitted = st.form_submit_button(
+                        f"📋 Submit Decision for Group {gid}",
+                        type="primary",
+                        use_container_width=True
                     )
 
-                st.html("""
-                <div class="human-decision-disclaimer">
-                    ⚠️ <b>Disclaimer:</b> By submitting, you confirm this decision is made by an
-                    AUTHORISED BANK AUDITOR. The GAT AML model provided supporting analysis only.
-                    This action will be logged and audited.
-                </div>
-                """)
-
-                if st.button(f"📋 Submit Decision for Group {gid}", key=f"submit_{tx_key}", type="primary", use_container_width=True):
+                if submitted:
                     timestamp = datetime.now().strftime("%d %b %Y, %I:%M %p")
                     st.session_state.human_decision_submitted[tx_key] = {
                         "decision": decision,
                         "notes": notes,
-                        "timestamp": timestamp
+                        "timestamp": timestamp,
+                        "account_number": sender_acc
                     }
                     
-                    # Persist decision to the database backend with sender account association
+                    # Persist decision to MySQL and local dataset manager
                     decisions_db.record_analyst_decision(tx_key, decision, notes, timestamp, account=sender_acc)
+                    fraud_data.save_analyst_decision(tx_key, decision, notes, timestamp)
                     
                     # After ANY decision → move to Dashboard and select the next undecided group
                     # so the just-decided group disappears immediately from the dashboard list
-                    _fresh_decisions = decisions_db.get_analyst_decisions()
+                    _all_decided = set(st.session_state.human_decision_submitted.keys())
                     _remaining = [
                         s for s in fraud_data.get_all_flagged_senders()
-                        if s.get("tx_id", f"GROUP-{s.get('group_id',1)}") not in _fresh_decisions
+                        if s.get("tx_id", f"GROUP-{s.get('group_id',1)}") not in _all_decided
                     ]
                     if _remaining:
                         st.session_state.selected_tx_id = _remaining[0]["tx_id"]

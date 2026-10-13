@@ -18,21 +18,43 @@ import streamlit as st
 _DECISIONS_FILE = os.path.join(os.path.dirname(__file__), "analyst_decisions.json")
 
 def _load_decisions() -> dict:
-    """Return a dictionary of group_id (int) -> decision_data."""
+    """Return a dictionary of group_id (int) -> decision_data from DB with local JSON fallback."""
+    decisions = {}
+    # Primary: load persistent decisions from MySQL so decisions survive app reboots
+    try:
+        import decisions_db
+        db_decs = decisions_db.get_analyst_decisions()
+        for k, v in db_decs.items():
+            try:
+                gid = int(str(k).replace("GROUP-", "").replace("TX-", ""))
+                decisions[gid] = v
+            except Exception:
+                pass
+    except Exception:
+        pass
+
+    # Secondary: merge with local JSON cache if present
     if os.path.exists(_DECISIONS_FILE):
         try:
             with open(_DECISIONS_FILE, "r") as f:
                 data = json.load(f)
-                return {int(k): v for k, v in data.items()}
+                for k, v in data.items():
+                    try:
+                        gid = int(k)
+                        if gid not in decisions:
+                            decisions[gid] = v
+                    except Exception:
+                        pass
         except Exception:
             pass
-    return {}
+    return decisions
 
 def _save_decisions(decisions_dict: dict):
-    """Persist the decisions dictionary to disk."""
+    """Persist the decisions dictionary to local disk cache."""
     try:
         with open(_DECISIONS_FILE, "w") as f:
-            json.dump(decisions_dict, f, indent=4)
+            # Ensure keys are serialized cleanly as strings
+            json.dump({str(k): v for k, v in decisions_dict.items()}, f, indent=4)
     except Exception:
         pass
 # ────────────────────────────────────────────────────────────────
@@ -803,5 +825,41 @@ def record_analyst_decision(tx_id_or_group_id, decision: str, notes: str, timest
     # 2. Persist to disk
     decisions = _load_decisions()
     decisions[str(target_gid)] = decision_data
+    _save_decisions(decisions)
+    return True
+
+
+def remove_analyst_decision(tx_id_or_group_id):
+    """Remove analyst decision for a group from in-memory summaries and local cache."""
+    summaries = get_dm().get_group_summaries()
+    target_gid = None
+    for s in summaries:
+        if (
+            str(s.get("tx_id")) == str(tx_id_or_group_id)
+            or str(s.get("group_id")) == str(tx_id_or_group_id)
+            or str(s.get("lead_tx_id")) == str(tx_id_or_group_id)
+        ):
+            target_gid = int(s["group_id"])
+            break
+
+    if target_gid is None:
+        try:
+            target_gid = int(str(tx_id_or_group_id).replace("GROUP-", "").replace("TX-", ""))
+        except Exception:
+            return False
+
+    for s in summaries:
+        if int(s.get("group_id", -1)) == target_gid:
+            if "analyst_decision" in s:
+                del s["analyst_decision"]
+            s["risk"] = "High"
+            s["is_fraud"] = True
+            break
+
+    decisions = _load_decisions()
+    if target_gid in decisions:
+        del decisions[target_gid]
+    if str(target_gid) in decisions:
+        del decisions[str(target_gid)]
     _save_decisions(decisions)
     return True
