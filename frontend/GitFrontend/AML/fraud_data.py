@@ -104,7 +104,7 @@ import threading
 class DatasetManager:
     """Singleton manager that loads and indexes GitData/ transactions and customer profiles."""
     _instance = None
-    _lock = threading.Lock()
+    _lock = threading.RLock()
     _df = None
     _profiles_map = None
     _group_summaries = None
@@ -182,7 +182,7 @@ class DatasetManager:
             WHERE UPPER(gat_risk_level) IN ('HIGH', 'MEDIUM')
               AND UPPER(behavior_signal) = 'FAN-OUT'
               AND fan_out_group IS NOT NULL
-            LIMIT 2000
+            LIMIT 250
         ) t2 ON t1.fan_out_group = t2.fan_out_group
         """
         raw_df = pd.read_sql(optimized_query, engine)
@@ -828,6 +828,7 @@ def record_analyst_decision(tx_id_or_group_id, decision: str, notes: str, timest
     _save_decisions(decisions)
     return True
 
+save_analyst_decision = record_analyst_decision
 
 def remove_analyst_decision(tx_id_or_group_id):
     """Remove analyst decision for a group from in-memory summaries and local cache."""

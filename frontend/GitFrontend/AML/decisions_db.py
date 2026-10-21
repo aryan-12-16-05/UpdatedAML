@@ -111,13 +111,11 @@ def get_analyst_decisions():
         for row in cursor.fetchall():
             acc = row.get('account_number')
             tx_k = row['tx_id']
-            if not acc:
-                acc = _resolve_account_from_tx(tx_k)
             decisions[tx_k] = {
                 "decision": row['decision'],
                 "notes": row['notes'],
                 "timestamp": row['timestamp'],
-                "account_number": acc
+                "account_number": str(acc).strip() if acc else None
             }
         cursor.close()
         conn.close()
