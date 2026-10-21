@@ -861,35 +861,40 @@ elif page == "Alerts / Graph Network":
 
     expand_state_key = f"expand_2hop_{sel_tx}"
     if expand_state_key not in st.session_state:
-        st.session_state[expand_state_key] = False
+        st.session_state[expand_state_key] = True
+
+    col_g_info, col_g_toggle = st.columns([3, 1])
+    with col_g_toggle:
+        is_2hop = st.toggle("🔍 Show 2-Hop Layering", value=st.session_state[expand_state_key], key=f"tgl_{expand_state_key}")
+        st.session_state[expand_state_key] = is_2hop
 
     fig_g = graph_vis.render_plotly_graph(sel_tx, include_2hop=st.session_state[expand_state_key])
     
-    # Enable dynamic node expansion on click
-    event = st.plotly_chart(fig_g, use_container_width=True, on_select="rerun", selection_mode="points")
-    
-    # If the analyst clicks a node, fetch downstream transactions (expand 2-hop)
-    if event and event.get("selection", {}).get("points"):
-        clicked_pt = event["selection"]["points"][0]
-        if "customdata" in clicked_pt:
-            if not st.session_state[expand_state_key]:
-                st.session_state[expand_state_key] = True
-                st.rerun()
+    # Enable interactive point inspection
+    st.plotly_chart(fig_g, use_container_width=True)
 
-    # Legend explanation
+    # Multi-hop visual legend
     st.html(textwrap.dedent("""
-    <div style="display:flex;gap:24px;justify-content:center;margin-top:4px;flex-wrap:wrap;">
-        <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;">
-            <span style="width:14px;height:14px;background:#ef4444;border-radius:50%;display:inline-block;"></span>
-            Sender Account
+    <div style="display:flex;gap:20px;justify-content:center;margin-top:6px;flex-wrap:wrap;background:#f8fafc;padding:10px 16px;border-radius:8px;border:1px solid #e2e8f0;">
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#991b1b;">
+            <span style="width:14px;height:14px;background:#ef4444;border-radius:50%;display:inline-block;border:2px solid #ffffff;box-shadow:0 0 2px rgba(0,0,0,0.2);"></span>
+            ★ Hop-0 Sender Account
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#92400e;">
+            <span style="width:14px;height:14px;background:#f59e0b;border-radius:50%;display:inline-block;border:2px solid #ffffff;box-shadow:0 0 2px rgba(0,0,0,0.2);"></span>
+            ● Hop-1 Direct Receivers
+        </div>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#6b21a8;">
+            <span style="width:14px;height:14px;background:#8b5cf6;border-radius:3px;display:inline-block;border:2px solid #ffffff;box-shadow:0 0 2px rgba(0,0,0,0.2);transform:rotate(45deg);"></span>
+            ◆ Hop-2 Downstream Layering
         </div>
         <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;">
-            <span style="width:14px;height:14px;background:#f59e0b;border-radius:50%;display:inline-block;"></span>
-            Hop-1 Direct Receivers
+            <span style="width:24px;height:2.5px;background:#ef4444;display:inline-block;"></span>
+            Hop-1 Transfer (solid red)
         </div>
         <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;">
-            <span style="width:28px;height:2px;background:#ef4444;display:inline-block;"></span>
-            Hop-1 Transfer (amount shown)
+            <span style="width:24px;height:2px;border-top:2px dashed #8b5cf6;display:inline-block;"></span>
+            Hop-2 Downstream Transfer (dashed purple)
         </div>
     </div>
     """))
