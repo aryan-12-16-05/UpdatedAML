@@ -1,3 +1,7 @@
+"""
+AML Fraud Investigation Platform
+Real-time graph analysis, GAT model predictions, and human auditor decisions.
+"""
 import streamlit as st
 import traceback
 
