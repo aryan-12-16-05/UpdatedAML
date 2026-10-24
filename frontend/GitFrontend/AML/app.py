@@ -509,6 +509,7 @@ if page in ["Dashboard", "Decisions"]:
             risk_color = "#ef4444" if risk == "High" else "#f59e0b" if risk == "Medium" else "#dc2626"
             sel_bg = "#eff6ff" if is_sel else "#ffffff"
             sel_border = "#93c5fd" if is_sel else "#e2e8f0"
+            bar_width = max(5, min(100, score))
             tx_count_str = tx.get('tx_count', len(fraud_data.get_fan_out_rows(tx_id)))
             recv_match_html = f'<div style="font-size:10.5px;color:#2563eb;font-weight:600;margin-top:3px;">🔍 Matched Receiver: {search_query.strip()}</div>' if clean_q and clean_q not in acc.lower() else ""
 
