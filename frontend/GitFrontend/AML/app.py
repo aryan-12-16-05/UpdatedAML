@@ -415,12 +415,86 @@ if page in ["Dashboard", "Decisions"]:
             if decided:
                 st.session_state.selected_tx_id = decided[0]
         
-        risk_filter = st.selectbox("Filter by Risk", ["All", "High", "Medium", "Low"], label_visibility="collapsed")
-        
-        if risk_filter == "All":
-            visible_txs = [tx for tx in all_txs if tx.get("risk") in ["High", "Medium", "Low"]]
+        # ── Account Search Bar ──
+        search_query = st.text_input(
+            "Search Account Number",
+            value=st.session_state.get(f"acc_search_{page}", ""),
+            placeholder="🔍 Search Account # (e.g. 8068008D0)...",
+            key=f"search_input_{page}",
+            label_visibility="collapsed"
+        )
+        st.session_state[f"acc_search_{page}"] = search_query
+
+        # ── Risk Filter & Clear Search Row ──
+        filt_col1, filt_col2 = st.columns([1.3, 0.9])
+        with filt_col1:
+            risk_filter = st.selectbox(
+                "Filter by Risk",
+                ["All Risks", "High", "Medium", "Low"],
+                key=f"risk_filter_{page}",
+                label_visibility="collapsed"
+            )
+        with filt_col2:
+            if search_query:
+                if st.button("✕ Clear", key=f"clear_search_{page}", use_container_width=True):
+                    st.session_state[f"acc_search_{page}"] = ""
+                    st.session_state[f"search_input_{page}"] = ""
+                    st.rerun()
+
+        # ── Risk Filter ──
+        if risk_filter == "High":
+            candidate_txs = [tx for tx in all_txs if tx.get("risk") == "High"]
+        elif risk_filter == "Medium":
+            candidate_txs = [tx for tx in all_txs if tx.get("risk") == "Medium"]
+        elif risk_filter == "Low":
+            candidate_txs = [tx for tx in all_txs if tx.get("risk") == "Low"]
         else:
-            visible_txs = [tx for tx in all_txs if tx.get("risk") == risk_filter]
+            candidate_txs = [tx for tx in all_txs if tx.get("risk") in ["High", "Medium", "Low"]]
+
+        # ── Account Number Search Filter ──
+        clean_q = search_query.strip().lower()
+        if clean_q:
+            visible_txs = []
+            for tx in candidate_txs:
+                acc = str(tx.get("account", "")).lower()
+                name = str(tx.get("name", "")).lower()
+                gid = str(tx.get("group_id", "")).lower()
+                tx_id = str(tx.get("tx_id", "")).lower()
+                lead_tx = str(tx.get("lead_tx_id", "")).lower()
+
+                # Match sender account, entity name, group ID or lead tx
+                if (clean_q in acc or clean_q in name or clean_q in tx_id or 
+                    clean_q == gid or clean_q in lead_tx or f"group-{gid}" in clean_q):
+                    visible_txs.append(tx)
+                    continue
+
+                # Also search if clean_q matches any receiver (To Account) in this fan-out group
+                try:
+                    gdf = fraud_data.get_dm().get_group_df(tx.get("group_id"))
+                    if not gdf.empty and "To Account" in gdf.columns:
+                        to_accs = gdf["To Account"].dropna().astype(str).str.lower().values
+                        if any(clean_q in str(ta) for ta in to_accs):
+                            visible_txs.append(tx)
+                except Exception:
+                    pass
+
+            st.caption(f"🔎 Found **{len(visible_txs)}** group(s) matching '{search_query.strip()}'")
+
+            # Auto-select the first matching group if currently selected is not in visible results
+            if visible_txs:
+                vis_ids = {t.get("tx_id") for t in visible_txs} | {str(t.get("group_id")) for t in visible_txs}
+                if st.session_state.selected_tx_id not in vis_ids:
+                    st.session_state.selected_tx_id = visible_txs[0].get("tx_id", f"GROUP-{visible_txs[0].get('group_id',1)}")
+                    st.session_state.selected_sub_tx = None
+            else:
+                st.html(f"""
+                <div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:12px;margin:8px 0;text-align:center;">
+                    <div style="font-size:12px;font-weight:700;color:#dc2626;">No Matching Account</div>
+                    <div style="font-size:11px;color:#64748b;margin-top:2px;">No investigations found matching "<b>{search_query}</b>".</div>
+                </div>
+                """)
+        else:
+            visible_txs = candidate_txs
 
         for tx in visible_txs:
             acc = tx.get("account", "Unknown")
@@ -435,8 +509,8 @@ if page in ["Dashboard", "Decisions"]:
             risk_color = "#ef4444" if risk == "High" else "#f59e0b" if risk == "Medium" else "#dc2626"
             sel_bg = "#eff6ff" if is_sel else "#ffffff"
             sel_border = "#93c5fd" if is_sel else "#e2e8f0"
-            bar_width = max(5, min(100, score))
             tx_count_str = tx.get('tx_count', len(fraud_data.get_fan_out_rows(tx_id)))
+            recv_match_html = f'<div style="font-size:10.5px;color:#2563eb;font-weight:600;margin-top:3px;">🔍 Matched Receiver: {search_query.strip()}</div>' if clean_q and clean_q not in acc.lower() else ""
 
             st.html(textwrap.dedent(f"""
             <div class="flagged-card flagged-card-{risk.lower()}"
@@ -449,6 +523,7 @@ if page in ["Dashboard", "Decisions"]:
                     <span class="badge-{risk.lower()}">{risk.upper()}</span>
                 </div>
                 <div class="flagged-pattern">📌 {pattern} · Group {gid} ({tx_count_str} txs)</div>
+                {recv_match_html}
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-top:4px;">
                     <div class="risk-score-bar-bg" style="flex:1;margin-right:8px;">
                         <div class="risk-score-bar-fill" style="width:{bar_width}%;background:{risk_color};"></div>
