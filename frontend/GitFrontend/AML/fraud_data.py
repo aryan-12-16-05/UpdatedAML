@@ -873,7 +873,7 @@ def create_network_graph(tx_id_or_group_id, include_2hop=True, max_nodes=20):
         )
         G.add_edge(source_acc, target, amount=amt_str, raw_amount=amt, currency=currency, hop=1)
 
-    # Hop 2: Downstream Layering Accounts (Vivid Purple #8b5cf6)
+    # Hop 2: Downstream Layering Accounts (Slate Grey #64748b)
     if include_2hop and receiver_accs:
         downstream = get_dm().get_downstream_transactions(receiver_accs, render_receivers)
         for dtx in downstream:
@@ -899,7 +899,7 @@ def create_network_graph(tx_id_or_group_id, include_2hop=True, max_nodes=20):
                     layering_type=dtx.get("layering_type", "Downstream Layering"),
                     risk_tier="High",
                     parent_receiver=u,
-                    color="#8b5cf6",
+                    color="#64748b",
                     hop=2
                 )
             G.add_edge(u, v, amount=amt_disp, raw_amount=amt_val, currency=currency, hop=2)

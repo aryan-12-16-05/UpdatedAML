@@ -4,7 +4,7 @@ Renders interactive graph network topology for AML transaction analysis.
 Supports full 2-hop visualization with distinct color coding per hop:
 - Hop 0 (Sender): Crimson Red Star
 - Hop 1 (Direct Receivers): Vibrant Amber Circle
-- Hop 2 (Downstream Layering): Vivid Purple Diamond
+- Hop 2 (Downstream Layering): Slate Grey Diamond
 """
 
 import math
@@ -55,7 +55,7 @@ def _build_hover_text(node, data):
 
     elif hop == 2:
         entity_name = data.get("entity_name", node)
-        lines.append("<b>🟣 HOP-2 DOWNSTREAM LAYERING</b>")
+        lines.append("<b>🔘 HOP-2 DOWNSTREAM LAYERING</b>")
         lines.append(f"<b>{entity_name}</b>")
         lines.append(f"Account: <code>{node}</code>")
         lines.append(f"Bank: {data.get('bank_name', 'International Clearing Bank')}")
@@ -146,11 +146,11 @@ def render_plotly_graph(tx_id, include_2hop=True):
             badge_font = "#dc2626"
             badge_border = "#fecaca"
         else:
-            color = "#8b5cf6"
+            color = "#94a3b8"
             width = 1.8
             dash = "dash"
-            badge_font = "#7c3aed"
-            badge_border = "#ddd6fe"
+            badge_font = "#475569"
+            badge_border = "#cbd5e1"
 
         edge_traces.append(go.Scatter(
             x=[x0, x1, None],
@@ -212,10 +212,10 @@ def render_plotly_graph(tx_id, include_2hop=True):
             name="◆ Hop-2 Downstream Layering",
             symbol="diamond",
             size=20,
-            color="#8b5cf6",
+            color="#64748b",
             line_color="#ffffff",
             line_width=2,
-            text_color="#6b21a8",
+            text_color="#334155",
             opacity=0.95,
         ),
     }
@@ -279,7 +279,7 @@ def render_plotly_graph(tx_id, include_2hop=True):
             title=dict(
                 text=f"<b>Transaction Network Topology — {tx_id}</b>   "
                      f"<span style='font-size:12px;color:#64748b;'>"
-                     f"🔴 Hop-0 Sender · 🟡 Hop-1 Receivers · 🟣 Hop-2 Downstream Layering</span>",
+                     f"🔴 Hop-0 Sender · 🟡 Hop-1 Receivers · 🔘 Hop-2 Downstream Layering</span>",
                 font=dict(size=14, color="#0f172a"),
                 x=0.0,
             ),

@@ -964,8 +964,8 @@ elif page == "Alerts / Graph Network":
             <span style="width:14px;height:14px;background:#f59e0b;border-radius:50%;display:inline-block;border:2px solid #ffffff;box-shadow:0 0 2px rgba(0,0,0,0.2);"></span>
             ● Hop-1 Direct Receivers
         </div>
-        <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#6b21a8;">
-            <span style="width:14px;height:14px;background:#8b5cf6;border-radius:3px;display:inline-block;border:2px solid #ffffff;box-shadow:0 0 2px rgba(0,0,0,0.2);transform:rotate(45deg);"></span>
+        <div style="display:flex;align-items:center;gap:6px;font-size:12px;font-weight:600;color:#475569;">
+            <span style="width:14px;height:14px;background:#64748b;border-radius:3px;display:inline-block;border:2px solid #ffffff;box-shadow:0 0 2px rgba(0,0,0,0.2);transform:rotate(45deg);"></span>
             ◆ Hop-2 Downstream Layering
         </div>
         <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;">
@@ -973,8 +973,8 @@ elif page == "Alerts / Graph Network":
             Hop-1 Transfer (solid red)
         </div>
         <div style="display:flex;align-items:center;gap:6px;font-size:12px;color:#475569;">
-            <span style="width:24px;height:2px;border-top:2px dashed #8b5cf6;display:inline-block;"></span>
-            Hop-2 Downstream Transfer (dashed purple)
+            <span style="width:24px;height:2px;border-top:2px dashed #94a3b8;display:inline-block;"></span>
+            Hop-2 Downstream Transfer (dashed grey)
         </div>
     </div>
     """))
